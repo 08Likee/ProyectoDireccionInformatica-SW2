@@ -19,6 +19,16 @@ describe('Navegación institucional por permisos vigentes', () => {
       .toBe('/administracion/autorizaciones');
   });
 
+  it('muestra Auditoría sin conceder acceso a Administración', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: true, json: async () => ({ perfil: { permisosInstitucionales: ['AUDITORIA_CONSULTAR'] } }),
+    }));
+    render(<NavegacionInstitucional />);
+    expect((await screen.findByRole('link', { name: 'Auditoría' })).getAttribute('href'))
+      .toBe('/administracion/auditoria');
+    expect(screen.queryByRole('link', { name: 'Administración' })).toBeNull();
+  });
+
   it('oculta Administración cuando la sesión no tiene permisos o no existe', async () => {
     const solicitud = vi.fn().mockResolvedValue({
       ok: true,

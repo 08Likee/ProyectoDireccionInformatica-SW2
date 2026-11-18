@@ -7,10 +7,13 @@ import { LimiteService } from '../infraestructura/seguridad/limite.service';
 import { AutorizacionesController } from './presentacion/autorizaciones.controller';
 import { AutorizacionesRepository } from './datos/autorizaciones.repository';
 import { AutorizacionesService } from './negocio/autorizaciones.service';
+import { AuditoriaController } from './presentacion/auditoria.controller';
+import { AuditoriaRepository } from './datos/auditoria.repository';
+import { AuditoriaService } from './negocio/auditoria.service';
 
 @Module({
-  controllers: [CuentaController, AutorizacionesController],
-  providers: [CuentaService, CuentaRepository, CorreoService, LimiteService, AutorizacionesRepository, AutorizacionesService],
+  controllers: [CuentaController, AutorizacionesController, AuditoriaController],
+  providers: [CuentaService, CuentaRepository, CorreoService, LimiteService, AutorizacionesRepository, AutorizacionesService, AuditoriaRepository, AuditoriaService],
   exports: [AutorizacionesService],
 })
 export class Pk01Module {}

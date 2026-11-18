@@ -1,0 +1,30 @@
+/* Consulta institucional de auditoría: estilo coherente con PK01 y adaptable a móvil. */
+.audit-filtros,.audit-resultados,.audit-detalle { margin-bottom:1.4rem; }
+.audit-form { display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:1rem;align-items:end; }
+.audit-form label { display:flex;flex-direction:column;gap:.4rem;color:#193b59;font-size:.9rem;font-weight:650;min-width:0; }
+.audit-form input,.audit-form select { width:100%;min-width:0;background:#fff;color:#153c5d;font:inherit;padding:.78rem .85rem;border:1px solid #bed6e9;border-radius:11px; }
+.audit-form input:focus-visible,.audit-form select:focus-visible { outline:2px solid #0284c7;outline-offset:1px; }
+.audit-acciones { display:flex;flex-wrap:wrap;gap:.6rem;align-items:center; }
+.audit-acciones button { flex:1; }
+.audit-titulo { display:flex;justify-content:space-between;gap:1rem;align-items:center;flex-wrap:wrap;margin-bottom:1rem; }
+.audit-titulo h2 { margin:0; }
+.audit-titulo span { font-size:.85rem;color:#5a7185; }
+.audit-tabla { min-width:840px; }
+.audit-tabla td { overflow-wrap:anywhere; }
+.audit-tabla button { white-space:nowrap; }
+.audit-estado-exito,.audit-estado-denegado { display:inline-block;border-radius:9px;padding:.28rem .55rem;font-size:.82rem;font-weight:700; }
+.audit-estado-exito { background:#e6f7ed;color:#0c6a3c; }
+.audit-estado-denegado { background:#fff0f1;color:#ab2739; }
+.audit-vacio { padding:1.5rem;background:#f3f9fd;border-radius:13px;color:#48677e; }
+.audit-paginacion { display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.75rem;padding-top:1.1rem;color:#48677e;font-weight:650; }
+.audit-paginacion>div { display:flex;gap:.55rem; }
+.audit-resumen { display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:1rem;padding:1rem;background:#f0f8fd;border:1px solid #d8eaf6;border-radius:13px; }
+.audit-resumen dt { font-weight:700;color:#55758d;font-size:.8rem; }
+.audit-resumen dd { margin:.25rem 0 0;color:#153b55;overflow-wrap:anywhere; }
+.audit-codigo { font-family:ui-monospace,monospace;font-size:.83rem; }
+.audit-comparacion { display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1rem;margin-top:1.1rem; }
+.audit-comparacion>div { min-width:0; }
+.audit-comparacion h3 { margin:.3rem 0 .6rem; }
+.audit-comparacion pre { white-space:pre-wrap;overflow-wrap:anywhere;min-height:5rem;padding:1rem;border:1px solid #d8eaf6;border-radius:12px;color:#233e58;background:#f5fbff;font-size:.85rem; }
+@media(max-width:950px) { .audit-form { grid-template-columns:repeat(2,minmax(0,1fr)); } .audit-resumen { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+@media(max-width:580px) { .audit-form,.audit-resumen,.audit-comparacion { grid-template-columns:1fr; } .audit-paginacion { align-items:stretch; } }

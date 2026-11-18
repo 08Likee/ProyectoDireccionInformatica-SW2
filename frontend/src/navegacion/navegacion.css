@@ -38,3 +38,9 @@
 @media(prefers-reduced-motion:reduce) {
   .navegacion-institucional a { transition:none; }
 }
+
+/* El incremento de auditoría incorpora una cuarta opción privada. */
+@media(max-width:980px) {
+  .admin-cabecera-interior { flex-wrap:wrap; }
+  .admin-cabecera .navegacion-institucional { width:100%;justify-content:flex-start;flex-wrap:wrap; }
+}

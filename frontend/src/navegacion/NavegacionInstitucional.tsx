@@ -3,7 +3,7 @@ import { cuentaApi, type Perfil } from '../cuenta/api';
 import './navegacion.css';
 
 /** La navegación orienta al usuario; el backend sigue autorizando cada operación. */
-export function EnlaceAdministracion({ className }: { className?: string }) {
+function EnlacePermiso({ className, permiso, url, etiqueta }: { className?: string; permiso: string; url: string; etiqueta: string }) {
   const [autorizado, setAutorizado] = useState(false);
 
   useEffect(() => {
@@ -12,18 +12,26 @@ export function EnlaceAdministracion({ className }: { className?: string }) {
       .then(({ perfil }) => {
         if (activo) {
           setAutorizado(Array.isArray(perfil?.permisosInstitucionales)
-            && perfil.permisosInstitucionales.includes('AUTORIZACIONES_ADMINISTRAR'));
+            && perfil.permisosInstitucionales.includes(permiso));
         }
       })
       .catch(() => { if (activo) setAutorizado(false); });
     return () => { activo = false; };
-  }, []);
+  }, [permiso]);
 
   if (!autorizado) return null;
-  return <a href="/administracion/autorizaciones" className={className}
-    aria-current={window.location.pathname === '/administracion/autorizaciones' ? 'page' : undefined}>
-    Administración
-  </a>;
+  return <a href={url} className={className}
+    aria-current={window.location.pathname === url ? 'page' : undefined}>{etiqueta}</a>;
+}
+
+export function EnlaceAdministracion({ className }: { className?: string }) {
+  return <EnlacePermiso className={className} permiso="AUTORIZACIONES_ADMINISTRAR"
+    url="/administracion/autorizaciones" etiqueta="Administración" />;
+}
+
+export function EnlaceAuditoria({ className }: { className?: string }) {
+  return <EnlacePermiso className={className} permiso="AUDITORIA_CONSULTAR"
+    url="/administracion/auditoria" etiqueta="Auditoría" />;
 }
 
 /** Menú compartido de las páginas privadas, sin enlaces a módulos aún no implementados. */
@@ -31,6 +39,7 @@ export function NavegacionInstitucional() {
   return <nav className="navegacion-institucional" aria-label="Navegación institucional">
     <a href="/">Inicio</a>
     <EnlaceAdministracion />
+    <EnlaceAuditoria />
     <a href="/perfil" aria-current={window.location.pathname === '/perfil' ? 'page' : undefined}>Mi cuenta</a>
   </nav>;
 }
