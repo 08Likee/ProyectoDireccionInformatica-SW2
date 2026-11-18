@@ -1,6 +1,10 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { SaludModule } from './infraestructura/salud/salud.module';
+import { Pk01Module } from './pk01-gestion-usuarios-seguridad/pk01.module';
+import { CrearCuentas1794960000000 } from './pk01-gestion-usuarios-seguridad/datos/migraciones/CrearCuentas1794960000000';
+import { APP_GUARD } from '@nestjs/core';
+import { CsrfGuard } from './infraestructura/seguridad/csrf.guard';
 
 @Module({
   imports: [
@@ -13,11 +17,14 @@ import { SaludModule } from './infraestructura/salud/salud.module';
       database: process.env.POSTGRES_DB ?? 'direccion_informatica',
       autoLoadEntities: true,
       synchronize: false,
-      migrationsRun: false,
+      migrations: [CrearCuentas1794960000000],
+      migrationsRun: true,
       retryAttempts: 10,
       retryDelay: 2000,
     }),
     SaludModule,
+    Pk01Module,
   ],
+  providers: [{ provide: APP_GUARD, useClass: CsrfGuard }],
 })
 export class AppModule {}

@@ -27,14 +27,38 @@ describe('Landing institucional', () => {
     await screen.findByText(/Sistema disponible/i);
   });
 
-  it('no simula autenticación antes del CU-01', async () => {
+  it('presenta enlaces reales hacia la cuenta', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => ({ status: 'UP' }) }));
 
     render(<App />);
 
-    expect((screen.getByRole('button', { name: /Iniciar sesión/i }) as HTMLButtonElement).disabled).toBe(true);
-    expect((screen.getByRole('button', { name: /Registrar cuenta/i }) as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.getByRole('link', { name: /Iniciar sesión/i }).getAttribute('href')).toBe('/login');
+    expect(screen.getByRole('link', { name: /Registrar cuenta/i }).getAttribute('href')).toBe('/registro');
     expect(screen.getByText(/no otorgará permisos institucionales automáticamente/i)).toBeTruthy();
+  });
+
+  it('muestra la galería institucional responsive con fotos locales y carga diferida', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => ({ status: 'UP' }) }));
+    render(<App />);
+    const campus = document.getElementById('campus');
+    expect(campus).toBeTruthy();
+    expect(screen.getByRole('heading', { name: /Un espacio que nos identifica/i })).toBeTruthy();
+    expect(campus!.querySelectorAll('img')).toHaveLength(3);
+    expect([...campus!.querySelectorAll('img')].every(img => img.getAttribute('loading') === 'lazy')).toBe(true);
+    expect(screen.getByRole('link', { name: 'Campus' }).getAttribute('href')).toBe('#campus');
+    await screen.findByText(/Sistema disponible/i);
+  });
+
+  it('presenta dos secciones inmersivas con navegación accesible al campus', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => ({ status: 'UP' }) }));
+    render(<App />);
+
+    expect(document.getElementById('inicio')?.classList.contains('hero-institucional')).toBe(true);
+    expect(document.getElementById('facultad')?.classList.contains('franja-fotografica')).toBe(true);
+    expect(screen.getByRole('heading', { name: /Una carrera conectada con su comunidad/i })).toBeTruthy();
+    expect(screen.getByRole('link', { name: /Conocer nuestros espacios/i }).getAttribute('href')).toBe('#campus');
+    expect(document.getElementById('novedades')?.classList.contains('novedades-inmersivas')).toBe(true);
+    await screen.findByText(/Sistema disponible/i);
   });
 
   it('informa el fallo y permite reintentar', async () => {

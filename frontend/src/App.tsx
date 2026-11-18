@@ -1,5 +1,8 @@
 import { useEffect, useState } from 'react';
 import logo from './assets/logo-informatica.jpg';
+import fotoModulo from './assets/modulo-236.webp';
+import fotoCampus from './assets/campus-uagrm.webp';
+import fotoFacultad from './assets/espacios-ficct.webp';
 
 type Estado = 'consultando' | 'disponible' | 'no disponible';
 
@@ -161,6 +164,7 @@ export function App() {
               {[
                 ['Inicio', '#inicio'],
                 ['Servicios', '#servicios'],
+                ['Campus', '#campus'],
                 ['Novedades', '#novedades'],
                 ['Contacto', '#contacto'],
               ].map(([texto, href]) => (
@@ -184,7 +188,7 @@ export function App() {
 
         <main>
           <section id="inicio" className="relative z-10 hero-institucional">
-            <div className="mx-auto max-w-7xl px-5 pb-14 pt-10 sm:px-8 lg:px-10 lg:pb-24 lg:pt-16">
+            <div className="mx-auto max-w-7xl px-5 pb-14 pt-10 sm:px-8 lg:px-10 lg:pb-20 lg:pt-20">
             <div className="grid items-start gap-8 lg:grid-cols-[1.3fr_0.9fr] lg:gap-10">
               <div>
                 <div className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.20em] text-sky-50 shadow-sm backdrop-blur-sm">
@@ -201,7 +205,7 @@ export function App() {
 
                 <div className="mt-8 flex flex-wrap gap-4">
                   <a
-                    href="#acceso"
+                    href="/login"
                     className="rounded-2xl bg-white px-6 py-3 font-semibold text-sky-900 shadow-lg shadow-sky-900/20 transition hover:-translate-y-0.5 hover:bg-sky-50"
                   >
                     Acceder a la plataforma
@@ -231,7 +235,7 @@ export function App() {
               <div className="space-y-5">
                 <section
                   id="acceso"
-                  className="rounded-[28px] border border-white/20 bg-white/92 p-6 shadow-[0_24px_90px_-30px_rgba(2,132,199,0.45)] ring-1 ring-sky-100 backdrop-blur sm:p-7"
+                  className="rounded-[28px] border border-white/20 bg-white/95 p-6 shadow-[0_24px_90px_-30px_rgba(2,132,199,0.45)] ring-1 ring-sky-100 backdrop-blur sm:p-7"
                 >
                   <div className="flex flex-wrap items-start justify-between gap-4">
                     <div>
@@ -241,23 +245,21 @@ export function App() {
                     <BadgeEstado estado={estado} />
                   </div>
                   <p className="mt-4 text-sm leading-7 text-slate-600">
-                    El acceso a cuentas todavía no está habilitado.
+                    Accedé a tu cuenta o registrate para utilizar los servicios personales disponibles.
                   </p>
                   <div className="mt-6 space-y-3">
-                    <button
-                      type="button"
-                      disabled
-                      className="w-full rounded-2xl bg-sky-800 px-4 py-3.5 font-semibold text-white shadow-sm disabled:cursor-not-allowed disabled:opacity-60"
+                    <a
+                      href="/login"
+                      className="block w-full rounded-2xl bg-sky-800 px-4 py-3.5 text-center font-semibold text-white shadow-sm transition hover:bg-sky-900"
                     >
                       Iniciar sesión
-                    </button>
-                    <button
-                      type="button"
-                      disabled
-                      className="w-full rounded-2xl border border-sky-200 bg-white px-4 py-3.5 font-semibold text-sky-800 shadow-sm disabled:cursor-not-allowed disabled:opacity-60"
+                    </a>
+                    <a
+                      href="/registro"
+                      className="block w-full rounded-2xl border border-sky-200 bg-white px-4 py-3.5 text-center font-semibold text-sky-800 shadow-sm transition hover:bg-sky-50"
                     >
                       Registrar cuenta
-                    </button>
+                    </a>
                   </div>
                   <div className="mt-6 rounded-2xl border border-sky-100 bg-sky-50 px-4 py-3 text-sm leading-6 text-slate-700">
                     Nota operativa: registrar una cuenta <strong>no otorgará permisos institucionales automáticamente</strong>; la
@@ -318,43 +320,95 @@ export function App() {
             </div>
           </section>
 
-          <section id="novedades" className="relative z-10 mx-auto max-w-7xl px-5 py-10 sm:px-8 lg:px-10 lg:py-14">
-            <div className="grid gap-6 lg:grid-cols-[0.9fr_1.1fr]">
-              <article className="rounded-[32px] border border-sky-100 bg-white/95 p-7 shadow-sm ring-1 ring-slate-100">
-                <p className="text-xs font-semibold uppercase tracking-[0.22em] text-sky-700">Identidad institucional</p>
-                <h2 className="mt-2 text-3xl font-black tracking-tight text-slate-900">Carrera de Ingeniería Informática</h2>
-                <p className="mt-4 text-base leading-8 text-slate-600">
-                  La carrera forma profesionales en ciencias de la computación y pertenece a la FICCT de la UAGRM.
+          <section id="facultad" aria-labelledby="facultad-titulo" className="franja-fotografica relative z-10">
+            <div className="franja-fotografica-interior mx-auto flex w-full max-w-7xl items-center px-5 py-20 sm:px-8 lg:px-10">
+              <div className="franja-fotografica-texto max-w-3xl">
+                <p className="text-xs font-bold uppercase tracking-[0.25em] text-cyan-200 sm:text-sm">Nuestra facultad · Módulo 236</p>
+                <h2 id="facultad-titulo" className="mt-5 text-4xl font-black leading-[1.05] tracking-tight text-white sm:text-5xl lg:text-7xl">
+                  Una carrera conectada con su comunidad.
+                </h2>
+                <p className="mt-6 max-w-xl text-base leading-8 text-sky-50 sm:text-xl">
+                  Desde la Ciudad Universitaria, impulsamos una gestión que acompaña el trabajo académico y administrativo de Ingeniería Informática.
                 </p>
-                <dl className="mt-6 space-y-4">
-                  <div className="rounded-2xl bg-slate-50 px-4 py-3">
-                    <dt className="text-sm font-semibold text-slate-900">Unidad académica</dt>
-                    <dd className="mt-1 text-sm leading-6 text-slate-600">Facultad de Ingeniería en Ciencias de la Computación y Telecomunicaciones.</dd>
-                  </div>
-                  <div className="rounded-2xl bg-slate-50 px-4 py-3">
-                    <dt className="text-sm font-semibold text-slate-900">Ubicación institucional</dt>
-                    <dd className="mt-1 text-sm leading-6 text-slate-600">Av. Busch, Ciudad Universitaria, Módulo 236, Santa Cruz de la Sierra.</dd>
-                  </div>
-                  <div className="rounded-2xl bg-slate-50 px-4 py-3">
-                    <dt className="text-sm font-semibold text-slate-900">Contacto referencial</dt>
-                    <dd className="mt-1 text-sm leading-6 text-slate-600">(591) 3-3553636 · f_icct@uagrm.edu.bo</dd>
-                  </div>
-                </dl>
-              </article>
+                <a href="#campus" className="franja-fotografica-enlace mt-8 inline-flex items-center gap-3 rounded-full border border-white/35 bg-white/15 px-6 py-3 font-semibold text-white backdrop-blur-sm transition hover:bg-white/25">
+                  Conocer nuestros espacios <span aria-hidden="true">↓</span>
+                </a>
+              </div>
+            </div>
+          </section>
 
-              <div className="grid gap-4">
-                {novedades.map(novedad => (
-                  <article key={novedad.titulo} className="rounded-[28px] border border-sky-100 bg-white/95 p-6 shadow-sm ring-1 ring-slate-100">
-                    <div className="flex flex-wrap items-center justify-between gap-3">
-                      <span className="inline-flex rounded-full bg-sky-100 px-3 py-1 text-xs font-semibold uppercase tracking-[0.20em] text-sky-800">
-                        {novedad.categoria}
-                      </span>
-                      <span className="text-xs font-medium uppercase tracking-[0.18em] text-slate-500">{novedad.fecha}</span>
+          <section id="campus" aria-labelledby="campus-titulo" className="relative z-10 mx-auto max-w-7xl px-5 py-10 sm:px-8 lg:px-10 lg:py-16">
+            <div className="mb-7 flex flex-col justify-between gap-4 md:flex-row md:items-end">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-[0.23em] text-sky-700">Nuestro entorno universitario</p>
+                <h2 id="campus-titulo" className="mt-2 max-w-2xl text-3xl font-black tracking-tight text-slate-900 sm:text-4xl">
+                  Un espacio que nos identifica
+                </h2>
+              </div>
+              <p className="max-w-lg text-sm leading-7 text-slate-600 sm:text-base">
+                Conocé algunos espacios de la comunidad universitaria a la que sirve la Dirección de Ingeniería Informática.
+              </p>
+            </div>
+            <div className="grid gap-4 lg:grid-cols-[minmax(0,1.35fr)_minmax(0,0.9fr)]">
+              <figure className="campus-foto campus-foto-principal">
+                <img src={fotoModulo} alt="Edificio del Módulo 236 de la facultad, con árboles y jardines" loading="lazy" decoding="async" />
+                <figcaption>
+                  <span>Módulo 236</span>
+                  <strong>Facultad de Ingeniería en Ciencias de la Computación y Telecomunicaciones</strong>
+                </figcaption>
+              </figure>
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-1">
+                <figure className="campus-foto campus-foto-secundaria">
+                  <img src={fotoCampus} alt="Vista panorámica de la Ciudad Universitaria UAGRM" loading="lazy" decoding="async" />
+                  <figcaption><strong>Ciudad Universitaria UAGRM</strong></figcaption>
+                </figure>
+                <figure className="campus-foto campus-foto-secundaria">
+                  <img src={fotoFacultad} alt="Edificio universitario de la facultad y su acceso principal" loading="lazy" decoding="async" />
+                  <figcaption><strong>Espacios para nuestra comunidad académica</strong></figcaption>
+                </figure>
+              </div>
+            </div>
+          </section>
+
+          <section id="novedades" className="novedades-inmersivas relative z-10">
+            <div className="mx-auto max-w-7xl px-5 py-14 sm:px-8 lg:px-10 lg:py-20">
+              <div className="grid gap-6 lg:grid-cols-[0.9fr_1.1fr]">
+                <article className="rounded-[32px] border border-sky-100 bg-white/95 p-7 shadow-sm ring-1 ring-slate-100">
+                  <p className="text-xs font-semibold uppercase tracking-[0.22em] text-sky-700">Identidad institucional</p>
+                  <h2 className="mt-2 text-3xl font-black tracking-tight text-slate-900">Carrera de Ingeniería Informática</h2>
+                  <p className="mt-4 text-base leading-8 text-slate-600">
+                    La carrera forma profesionales en ciencias de la computación y pertenece a la FICCT de la UAGRM.
+                  </p>
+                  <dl className="mt-6 space-y-4">
+                    <div className="rounded-2xl bg-slate-50 px-4 py-3">
+                      <dt className="text-sm font-semibold text-slate-900">Unidad académica</dt>
+                      <dd className="mt-1 text-sm leading-6 text-slate-600">Facultad de Ingeniería en Ciencias de la Computación y Telecomunicaciones.</dd>
                     </div>
-                    <h3 className="mt-4 text-xl font-bold text-slate-900">{novedad.titulo}</h3>
-                    <p className="mt-3 text-sm leading-7 text-slate-600">{novedad.descripcion}</p>
-                  </article>
-                ))}
+                    <div className="rounded-2xl bg-slate-50 px-4 py-3">
+                      <dt className="text-sm font-semibold text-slate-900">Ubicación institucional</dt>
+                      <dd className="mt-1 text-sm leading-6 text-slate-600">Av. Busch, Ciudad Universitaria, Módulo 236, Santa Cruz de la Sierra.</dd>
+                    </div>
+                    <div className="rounded-2xl bg-slate-50 px-4 py-3">
+                      <dt className="text-sm font-semibold text-slate-900">Contacto referencial</dt>
+                      <dd className="mt-1 text-sm leading-6 text-slate-600">(591) 3-3553636 · f_icct@uagrm.edu.bo</dd>
+                    </div>
+                  </dl>
+                </article>
+
+                <div className="grid gap-4">
+                  {novedades.map(novedad => (
+                    <article key={novedad.titulo} className="rounded-[28px] border border-sky-100 bg-white/95 p-6 shadow-sm ring-1 ring-slate-100">
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <span className="inline-flex rounded-full bg-sky-100 px-3 py-1 text-xs font-semibold uppercase tracking-[0.20em] text-sky-800">
+                          {novedad.categoria}
+                        </span>
+                        <span className="text-xs font-medium uppercase tracking-[0.18em] text-slate-500">{novedad.fecha}</span>
+                      </div>
+                      <h3 className="mt-4 text-xl font-bold text-slate-900">{novedad.titulo}</h3>
+                      <p className="mt-3 text-sm leading-7 text-slate-600">{novedad.descripcion}</p>
+                    </article>
+                  ))}
+                </div>
               </div>
             </div>
           </section>

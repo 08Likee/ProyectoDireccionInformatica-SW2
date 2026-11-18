@@ -35,8 +35,117 @@ code {
   font-family: "Cascadia Code", "Fira Code", Consolas, monospace;
 }
 
-/* El fondo pertenece a la sección, no a una capa de altura fija. */
+/* Portada inmersiva: fotografía real a todo el ancho y alto de la sección.
+   El degradado protege la lectura sin esconder por completo la imagen. */
 .hero-institucional {
-  background-color: #07547e;
-  background-image: linear-gradient(135deg, #064568, #07547e 65%, #08668c);
+  min-height: max(720px, calc(100svh - 160px));
+  background-color: #064969;
+  background-image:
+    linear-gradient(100deg, rgba(1, 25, 45, .86) 0%, rgba(1, 42, 66, .66) 45%, rgba(2, 43, 66, .49) 76%, rgba(1, 35, 56, .65) 100%),
+    url('./assets/campus-uagrm.webp');
+  background-size: cover;
+  background-position: center, center 47%;
+  background-repeat: no-repeat;
+}
+
+/* Segunda sección fotográfica de borde a borde: la imagen es decorativa;
+   el título y la descripción permanecen como contenido accesible real. */
+.franja-fotografica {
+  isolation: isolate;
+  display: flex;
+  min-height: clamp(520px, 76svh, 780px);
+  overflow: hidden;
+  background-color: #063e5b;
+}
+.franja-fotografica::before,
+.franja-fotografica::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+}
+.franja-fotografica::before {
+  background: url('./assets/modulo-236.webp') center 47% / cover no-repeat;
+  transform: scale(1.02);
+}
+.franja-fotografica::after {
+  background: linear-gradient(90deg, rgba(0, 22, 39, .94) 0%, rgba(0, 43, 67, .82) 43%, rgba(0, 45, 68, .33) 100%);
+}
+.franja-fotografica-interior { min-height: inherit; }
+.franja-fotografica-texto { text-shadow: 0 2px 22px rgba(0, 18, 36, .45); }
+.franja-fotografica-enlace { text-shadow: none; }
+
+/* Bloque editorial: imagen ambiental de fondo a lo ancho, tarjetas opacas encima. */
+.novedades-inmersivas {
+  background-color: #d9ebf4;
+  background-image:
+    linear-gradient(112deg, rgba(233, 246, 253, .90), rgba(230, 242, 250, .80)),
+    url('./assets/espacios-ficct.webp');
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+
+@media (max-width: 767px) {
+  .hero-institucional { min-height: 0; background-position: center, 52% center; }
+  .franja-fotografica { min-height: 470px; }
+  .franja-fotografica::before { background-position: 55% center; }
+  .franja-fotografica::after { background: linear-gradient(180deg, rgba(0, 31, 49, .82), rgba(0, 31, 49, .65)); }
+  .novedades-inmersivas { background-position: 52% center; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  .franja-fotografica-enlace { transition: none; }
+}
+
+
+/* Galería fotográfica institucional: fotos locales, carga diferida, sin scripts de animación. */
+.campus-foto {
+  position:relative;
+  isolation:isolate;
+  margin:0;
+  min-width:0;
+  overflow:hidden;
+  border-radius:1.5rem;
+  background:#0d496b;
+  box-shadow:0 16px 40px -24px rgba(3,47,75,.45);
+}
+.campus-foto img { width:100%; height:100%; display:block; object-fit:cover; }
+.campus-foto::after {
+  content:'';
+  position:absolute;
+  inset:0;
+  z-index:0;
+  background:linear-gradient(180deg,transparent 42%,rgba(1,23,39,.89) 100%);
+  pointer-events:none;
+}
+.campus-foto figcaption {
+  position:absolute;
+  z-index:1;
+  left:clamp(1rem,3vw,2rem);
+  right:clamp(1rem,3vw,2rem);
+  bottom:clamp(1rem,3vw,2rem);
+  color:white;
+  text-shadow:0 2px 18px rgba(0,0,0,.6);
+}
+.campus-foto figcaption span {
+  display:block;
+  margin-bottom:.55rem;
+  color:#9ae7ff;
+  text-transform:uppercase;
+  font-size:.75rem;
+  font-weight:800;
+  letter-spacing:.18em;
+}
+.campus-foto figcaption strong { display:block; max-width:28rem; font-size:clamp(1.15rem,2.2vw,1.85rem); line-height:1.25; }
+.campus-foto-principal { min-height:360px; aspect-ratio:4/3; }
+.campus-foto-secundaria { min-height:190px; aspect-ratio:16/8; }
+.campus-foto-secundaria figcaption strong { font-size:clamp(1rem,1.5vw,1.25rem); }
+@media (min-width:1024px) { .campus-foto-principal { aspect-ratio:auto; min-height:495px; } .campus-foto-secundaria { aspect-ratio:auto; } }
+@media (max-width:639px) { .campus-foto-principal { min-height:290px; aspect-ratio:4/3; } .campus-foto-secundaria { min-height:190px; } }
+@media (prefers-reduced-motion:no-preference) {
+  .campus-foto img { transition:transform .55s ease; }
+  .campus-foto:hover img { transform:scale(1.035); }
 }
