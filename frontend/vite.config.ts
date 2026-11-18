@@ -7,8 +7,7 @@ export default defineConfig({
   server: {
     strictPort: true,
     proxy: {
-      '/actuator/health': { target: process.env.BACKEND_URL ?? 'http://localhost:8080' },
-      '/api': { target: process.env.BACKEND_URL ?? 'http://localhost:8080' },
+      '/api': { target: process.env.BACKEND_URL ?? 'http://localhost:3000' },
     },
   },
   test: { environment: 'jsdom' },

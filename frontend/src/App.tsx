@@ -117,7 +117,7 @@ export function App() {
 
     setEstado('consultando');
 
-    fetch('/actuator/health', { signal: controller.signal, cache: 'no-store' })
+    fetch('/api/health', { signal: controller.signal, cache: 'no-store' })
       .then(async response => response.ok && (await response.json()).status === 'UP')
       .then(ok => {
         if (activo) {
