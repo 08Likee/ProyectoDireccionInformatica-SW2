@@ -1,0 +1,2 @@
+# Backend
+Paquete raíz `bo.edu.uagrm.informatica.direccion`. Se crearán `seguridad`, `documental`, `tramites`, `academico`, `institucional`, `busqueda`, `inteligencia`, `automatizacion` y `compartido` según se necesiten. Organización interna: presentación, negocio, persistencia. No se crean clases vacías. Flyway controla el esquema; Hibernate valida, no genera DDL. No hay autenticación institucional en PATCH-000; se deniega el acceso salvo GET de salud.
