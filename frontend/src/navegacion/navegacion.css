@@ -1,0 +1,40 @@
+/* Navegación privada compartida. La visibilidad no sustituye los controles del backend. */
+.navegacion-institucional {
+  display:flex;
+  flex-wrap:wrap;
+  justify-content:flex-end;
+  align-items:center;
+  gap:.55rem;
+  min-width:0;
+}
+.navegacion-institucional a {
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  min-height:42px;
+  padding:.6rem .9rem;
+  border:1px solid #ffffff58;
+  border-radius:11px;
+  color:#fff;
+  font-size:.92rem;
+  font-weight:650;
+  line-height:1.3;
+  text-decoration:none;
+  transition:background-color .16s ease, border-color .16s ease;
+}
+.navegacion-institucional a:hover,
+.navegacion-institucional a[aria-current="page"] {
+  background:#ffffff25;
+  border-color:#ffffff94;
+}
+.navegacion-institucional a:focus-visible {
+  outline:3px solid #90e0ff;
+  outline-offset:3px;
+}
+@media(max-width:540px) {
+  .navegacion-institucional { width:100%; justify-content:flex-start; gap:.45rem; }
+  .navegacion-institucional a { font-size:.82rem; min-height:40px; padding:.55rem .75rem; }
+}
+@media(prefers-reduced-motion:reduce) {
+  .navegacion-institucional a { transition:none; }
+}

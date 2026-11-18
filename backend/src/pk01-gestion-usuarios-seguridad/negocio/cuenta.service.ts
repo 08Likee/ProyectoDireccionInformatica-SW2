@@ -3,6 +3,7 @@ import {
 } from '@nestjs/common';
 import { QueryFailedError } from 'typeorm';
 import { CuentaRepository } from '../datos/cuenta.repository';
+import { AutorizacionesRepository } from '../datos/autorizaciones.repository';
 import { PerfilPublico, perfilPublico, UsuarioFila } from '../datos/cuenta.tipos';
 import { CorreoService } from './correo.service';
 import { LimiteService } from '../../infraestructura/seguridad/limite.service';
@@ -21,6 +22,7 @@ export class CuentaService {
     private readonly repositorio: CuentaRepository,
     private readonly correo: CorreoService,
     private readonly limites: LimiteService,
+    private readonly autorizaciones: AutorizacionesRepository,
   ) {}
 
   private registroUnico(error: unknown): never {
@@ -79,6 +81,12 @@ export class CuentaService {
     if (!id) throw new BadRequestException('No se pudo verificar la cuenta.');
   }
 
+  private async perfilConPermisos(usuario: UsuarioFila): Promise<PerfilPublico> {
+    const perfil = perfilPublico(usuario);
+    perfil.permisosInstitucionales = await this.autorizaciones.permisosDeUsuario(String(usuario.id_usuario));
+    return perfil;
+  }
+
   async iniciar(entrada: unknown): Promise<{ token: string; perfil: PerfilPublico }> {
     const d = objeto(entrada);
     const correo = correoNormalizado(d.correo);
@@ -94,7 +102,7 @@ export class CuentaService {
     const token = tokenAleatorio();
     await this.repositorio.crearSesion(hashToken(token), String(usuario.id_usuario), MINUTOS_SESION);
     this.limites.limpiar(`login:${correo}`);
-    return { token, perfil: perfilPublico(usuario) };
+    return { token, perfil: await this.perfilConPermisos(usuario) };
   }
 
   async usuarioSesion(token: string | null): Promise<UsuarioFila> {
@@ -109,7 +117,7 @@ export class CuentaService {
   }
 
   async consultarSesion(token: string | null): Promise<PerfilPublico> {
-    return perfilPublico(await this.usuarioSesion(token));
+    return this.perfilConPermisos(await this.usuarioSesion(token));
   }
 
   async cerrar(token: string | null): Promise<void> {
@@ -179,6 +187,6 @@ export class CuentaService {
     const nombres = campo(d.nombres, 'Nombres', 100);
     const apellidos = campo(d.apellidos, 'Apellidos', 100);
     const actualizado = await this.repositorio.actualizarPerfil(String(usuario.id_usuario), nombres, apellidos);
-    return perfilPublico(actualizado);
+    return this.perfilConPermisos(actualizado);
   }
 }

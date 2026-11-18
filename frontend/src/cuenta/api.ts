@@ -5,10 +5,11 @@ export interface Perfil {
   apellidos: string;
   correo: string;
   verificado: boolean;
-  permisosInstitucionales: [];
+  permisosInstitucionales: string[];
 }
 
-export async function cuentaApi<T>(ruta: string, metodo: 'GET' | 'POST' | 'PUT' = 'GET', datos?: unknown): Promise<T> {
+/** Solicitudes al mismo origen, con token CSRF actualizado antes de cada mutación. */
+export async function solicitudApi<T>(ruta: string, metodo: 'GET' | 'POST' | 'PUT' | 'PATCH' = 'GET', datos?: unknown): Promise<T> {
   const headers: Record<string, string> = {};
   if (metodo !== 'GET') {
     const csrf = await fetch('/api/cuenta/csrf', { credentials: 'same-origin', cache: 'no-store' });
@@ -17,7 +18,7 @@ export async function cuentaApi<T>(ruta: string, metodo: 'GET' | 'POST' | 'PUT' 
     headers['x-csrf-token'] = valor.csrfToken;
     headers['content-type'] = 'application/json';
   }
-  const respuesta = await fetch(`/api/cuenta/${ruta}`, {
+  const respuesta = await fetch(ruta, {
     method: metodo,
     headers,
     credentials: 'same-origin',
@@ -30,4 +31,8 @@ export async function cuentaApi<T>(ruta: string, metodo: 'GET' | 'POST' | 'PUT' 
     throw new Error(typeof mensaje === 'string' ? mensaje : 'No se pudo completar la operación.');
   }
   return cuerpo as T;
+}
+
+export function cuentaApi<T>(ruta: string, metodo: 'GET' | 'POST' | 'PUT' = 'GET', datos?: unknown): Promise<T> {
+  return solicitudApi<T>(`/api/cuenta/${ruta}`, metodo, datos);
 }

@@ -17,8 +17,8 @@ export interface PerfilPublico {
   apellidos: string;
   correo: string;
   verificado: boolean;
-  /** La asignación de roles se implementará únicamente en CU-02. */
-  permisosInstitucionales: [];
+  /** Permisos vigentes (revalidados por el backend en cada operación protegida). */
+  permisosInstitucionales: string[];
 }
 
 export function perfilPublico(usuario: UsuarioFila): PerfilPublico {

@@ -61,12 +61,23 @@ describe('Landing institucional', () => {
     await screen.findByText(/Sistema disponible/i);
   });
 
+  it('muestra el acceso a Administración en la cabecera cuando la sesión está autorizada', async () => {
+    vi.stubGlobal('fetch', vi.fn(async (ruta: string) => ruta === '/api/cuenta/sesion'
+      ? { ok: true, json: async () => ({ perfil: { permisosInstitucionales: ['AUTORIZACIONES_ADMINISTRAR'] } }) }
+      : { ok: true, json: async () => ({ status: 'UP' }) }));
+    render(<App />);
+    const enlace = await screen.findByRole('link', { name: 'Administración' });
+    expect(enlace.getAttribute('href')).toBe('/administracion/autorizaciones');
+    expect(await screen.findByText(/Sistema disponible/i)).toBeTruthy();
+  });
+
   it('informa el fallo y permite reintentar', async () => {
-    const fetchMock = vi
-      .fn()
+    const consultaSalud = vi.fn()
       .mockRejectedValueOnce(new Error('sin conexión'))
       .mockResolvedValueOnce({ ok: true, json: async () => ({ status: 'UP' }) });
-    vi.stubGlobal('fetch', fetchMock);
+    vi.stubGlobal('fetch', vi.fn((ruta: string) => ruta === '/api/health'
+      ? consultaSalud()
+      : Promise.resolve({ ok: false, json: async () => ({}) })));
 
     render(<App />);
 
@@ -75,6 +86,6 @@ describe('Landing institucional', () => {
     fireEvent.click(screen.getByRole('button', { name: /Comprobar conexión/i }));
 
     expect(await screen.findByText(/Sistema disponible/i)).toBeTruthy();
-    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(consultaSalud).toHaveBeenCalledTimes(2);
   });
 });

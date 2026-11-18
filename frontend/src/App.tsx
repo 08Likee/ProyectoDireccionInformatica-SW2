@@ -3,6 +3,7 @@ import logo from './assets/logo-informatica.jpg';
 import fotoModulo from './assets/modulo-236.webp';
 import fotoCampus from './assets/campus-uagrm.webp';
 import fotoFacultad from './assets/espacios-ficct.webp';
+import { EnlaceAdministracion } from './navegacion/NavegacionInstitucional';
 
 type Estado = 'consultando' | 'disponible' | 'no disponible';
 
@@ -176,6 +177,7 @@ export function App() {
                   {texto}
                 </a>
               ))}
+              <EnlaceAdministracion className="rounded-full border border-white/30 bg-white/10 px-4 py-2 font-semibold text-white transition hover:bg-white/18" />
               <a
                 href="#acceso"
                 className="ml-1 rounded-full border border-white/30 bg-white/10 px-5 py-2 font-semibold text-white shadow-sm transition hover:bg-white/18"

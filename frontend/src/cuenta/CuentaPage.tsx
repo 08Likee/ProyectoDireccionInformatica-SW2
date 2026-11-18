@@ -4,6 +4,7 @@ import logo from '../assets/logo-informatica.jpg';
 import fotoModulo from '../assets/modulo-236.webp';
 import { cuentaApi, Perfil } from './api';
 import { ContrasenaCampos, fortalezaContrasena } from './ContrasenaCampos';
+import { NavegacionInstitucional } from '../navegacion/NavegacionInstitucional';
 import './cuenta.css';
 
 type Resultado = { mensaje: string; correo?: string };
@@ -280,7 +281,8 @@ export function CuentaPage() {
           <img src={logo} alt="Escudo de Ingeniería Informática UAGRM" />
           <span><small>UAGRM · FICCT</small><strong>Dirección de Ingeniería Informática</strong></span>
         </a>
-        <a href="/" className="cuenta-volver">Volver al inicio</a>
+        {rutaActual === '/perfil' ? <NavegacionInstitucional />
+          : <a href="/" className="cuenta-volver">Volver al inicio</a>}
       </div>
     </header>
     <main className="cuenta-contenedor">
