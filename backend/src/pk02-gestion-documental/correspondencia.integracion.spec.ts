@@ -1,0 +1,118 @@
+import { INestApplication } from '@nestjs/common';
+import { Test } from '@nestjs/testing';
+import request from 'supertest';
+import { DataSource } from 'typeorm';
+import { randomBytes } from 'node:crypto';
+import { mkdir,mkdtemp,rm } from 'node:fs/promises';
+import { join } from 'node:path';
+import { AppModule } from '../app.module';
+import { CorrespondenciaService } from './negocio/correspondencia.service';
+import { hashToken,tokenAleatorio } from '../infraestructura/seguridad/seguridad.util';
+const pdf=Buffer.from('%PDF-1.7\n1 0 obj << >> endobj\n%%EOF');
+describe('CU-05 integración HTTP y PostgreSQL',()=>{
+  let app:INestApplication,db:DataSource;
+  let u='',lector='',d='',ajena='',s='',sl='',p='',pa='',tipo='',remitente='',otro='',propio='',doc='',exp='';
+  const sufijo=randomBytes(7).toString('hex'),original=process.env.DOCUMENTOS_RAIZ;
+  let raiz='';
+  async function id(sql:string,params:unknown[]){const [r]=await db.query(sql,params) as Array<{id:string}>;return r.id;}
+  async function grant(usuario:string,direccion:string,codigos:string[]){await db.query(`INSERT INTO asignacion_permiso(id_usuario,id_direccion,id_permiso,asignado_por) SELECT $1,$2,id_permiso,$1 FROM permiso WHERE codigo=ANY($3::text[])`,[usuario,direccion,codigos]);}
+  async function sesion(usuario:string){const t=tokenAleatorio();await db.query(`INSERT INTO sesion(identificador_seguro,id_usuario,fecha_expiracion) VALUES($1,$2,now()+interval '1 hour')`,[hashToken(t),usuario]);return `di_sesion=${t}`;}
+  beforeAll(async()=>{
+    const base=original??'/app/almacen-documentos';await mkdir(base,{recursive:true});raiz=await mkdtemp(join(base,'prueba-cu05-'));process.env.DOCUMENTOS_RAIZ=raiz;
+    const modulo=await Test.createTestingModule({imports:[AppModule]}).compile();app=modulo.createNestApplication();await app.init();db=app.get(DataSource);
+    const usuario=(prefijo:string)=>id(`INSERT INTO usuario(identificador_personal,nombres,apellidos,correo,contrasena_hash,estado_cuenta,fecha_verificacion) VALUES($1,$2,'Prueba',$3,'HASH_INHABILITADO','ACTIVA',now()) RETURNING id_usuario::text AS id`,[prefijo+sufijo,prefijo,`${prefijo.toLowerCase()}${sufijo}@example.invalid`]);
+    u=await usuario('Exp');lector=await usuario('Lec');
+    d=await id(`INSERT INTO direccion_institucional(codigo,nombre) VALUES($1,'Prueba CU05') RETURNING id_direccion::text AS id`,['EXP_'+sufijo]);
+    ajena=await id(`INSERT INTO direccion_institucional(codigo,nombre) VALUES($1,'Otra CU05') RETURNING id_direccion::text AS id`,['EXT_'+sufijo]);
+    await grant(u,d,['CORRESPONDENCIA_GESTIONAR','CORRESPONDENCIA_CONSULTAR','CORRESPONDENCIA_CATALOGOS_GESTIONAR','EXPEDIENTES_GESTIONAR','EXPEDIENTES_CONSULTAR','DOCUMENTOS_GESTIONAR','DOCUMENTOS_CONSULTAR','PERIODOS_GESTIONAR','DOCUMENTOS_RESTRINGIDOS_CONSULTAR','DOCUMENTOS_RESTRICCIONES_GESTIONAR']);
+    await grant(lector,d,['CORRESPONDENCIA_CONSULTAR','DOCUMENTOS_CONSULTAR']);s=await sesion(u);sl=await sesion(lector);
+    p=await id(`INSERT INTO periodo_academico(id_direccion,gestion,codigo_periodo,fecha_inicio,fecha_fin,creado_por) VALUES($1,2026,'PRUEBA','2026-01-01','2026-06-30',$2) RETURNING id_periodo::text AS id`,[d,u]);
+    pa=await id(`INSERT INTO periodo_academico(id_direccion,gestion,codigo_periodo,fecha_inicio,fecha_fin,creado_por) VALUES($1,2026,'PRUEBA','2026-01-01','2026-06-30',$2) RETURNING id_periodo::text AS id`,[ajena,u]);
+    tipo=(await mutar('/api/correspondencia/tipos',{direccionId:d,codigo:'OF',nombre:'Oficio'},201)).body.id;
+    propio=(await mutar('/api/correspondencia/interlocutores',{direccionId:d,tipo:'PROPIA_DIRECCION',nombre:''},201)).body.id;
+    remitente=(await mutar('/api/correspondencia/interlocutores',{direccionId:d,tipo:'UNIDAD_EXTERNA',nombre:'Unidad A'},201)).body.id;
+    otro=(await mutar('/api/correspondencia/interlocutores',{direccionId:d,tipo:'UNIDAD_EXTERNA',nombre:'Unidad B'},201)).body.id;
+    exp=await id(`INSERT INTO expediente(id_direccion,id_periodo,asunto,creado_por,actualizado_por) VALUES($1,$2,'Expediente de prueba',$3,$3) RETURNING id_expediente::text AS id`,[d,p,u]);
+    const c=await csrf();doc=(await request(app.getHttpServer()).post('/api/documentos').set('Cookie',`${s}; ${c.cookie}`).set('x-csrf-token',c.token).field('direccionId',d).field('titulo','Antecedente CU05').field('categoria','Prueba').attach('archivo',pdf,'antecedente.pdf').expect(201)).body.id;
+  },60000);
+  afterAll(async()=>{
+    if(db?.isInitialized){
+      const ds=[d,ajena].filter(Boolean),us=[u,lector].filter(Boolean);
+      await db.transaction(async manager=>{
+        for(const tabla of ['correspondencia_documento','correspondencia_expediente','correspondencia_correccion','participacion_correspondencia','correspondencia','tipo_correspondencia','interlocutor'])await manager.query(`DELETE FROM ${tabla} WHERE id_direccion=ANY($1::bigint[])`,[ds]);
+      });
+      await db.query('DELETE FROM expediente_documento WHERE id_direccion=ANY($1::bigint[])',[ds]);
+      await db.query('DELETE FROM expediente WHERE id_direccion=ANY($1::bigint[])',[ds]);
+      await db.query('DELETE FROM periodo_academico WHERE id_direccion=ANY($1::bigint[])',[ds]);
+      await db.query('DELETE FROM restriccion_documento WHERE id_documento IN (SELECT id_documento FROM documento WHERE id_direccion=ANY($1::bigint[]))',[ds]);
+      await db.query('DELETE FROM version_documento WHERE id_documento IN (SELECT id_documento FROM documento WHERE id_direccion=ANY($1::bigint[]))',[ds]);
+      await db.query('DELETE FROM documento WHERE id_direccion=ANY($1::bigint[])',[ds]);
+      await db.query('DELETE FROM registro_auditoria WHERE id_direccion=ANY($1::bigint[])',[ds]);
+      await db.query('DELETE FROM asignacion_permiso WHERE id_direccion=ANY($1::bigint[])',[ds]);
+      await db.query('DELETE FROM sesion WHERE id_usuario=ANY($1::bigint[])',[us]);
+      await db.query('DELETE FROM direccion_institucional WHERE id_direccion=ANY($1::bigint[])',[ds]);
+      await db.query('DELETE FROM usuario WHERE id_usuario=ANY($1::bigint[])',[us]);
+    }if(app)await app.close();if(original===undefined)delete process.env.DOCUMENTOS_RAIZ;else process.env.DOCUMENTOS_RAIZ=original;if(raiz)await rm(raiz,{recursive:true,force:true});
+  },40000);
+  async function csrf(){const r=await request(app.getHttpServer()).get('/api/cuenta/csrf').expect(200);return {cookie:(r.headers['set-cookie'] as unknown as string[])[0].split(';')[0],token:r.body.csrfToken as string};}
+  const get=(ruta:string,cookie:string)=>request(app.getHttpServer()).get(ruta).set('Cookie',cookie);
+  async function mutar(ruta:string,body:unknown,estado:number,metodo:'post'|'patch'='post',cookie=s){const c=await csrf();return request(app.getHttpServer())[metodo](ruta).set('Cookie',`${cookie}; ${c.cookie}`).set('x-csrf-token',c.token).send(body as object).expect(estado);}
+  const ruta=(c:string)=>`/api/correspondencia/${c}`;
+  const ambito=()=>`?direccionId=${d}`;
+  const datos=(ref:string|null='OF-1')=>({direccionId:d,tipoId:tipo,remitenteId:remitente,destinatarioId:propio,sentido:'RECIBIDA',referenciaOficial:ref,asunto:'Correspondencia de prueba',fechaComunicacion:'2026-11-18'});
+  async function alta(ref:string){return (await mutar('/api/correspondencia',datos(ref),201)).body.id as string;}
+  it('registra recibidas y emitidas, valida catálogos, ámbitos y duplicados',async()=>{
+    await mutar('/api/correspondencia/tipos',{direccionId:d,codigo:'X',nombre:'No autorizado'},403,'post',sl);
+    await mutar('/api/correspondencia/tipos',{direccionId:d,codigo:'of',nombre:'Duplicado'},409);
+    await mutar('/api/correspondencia',{...datos(),periodoId:pa},400);
+    const a=await alta('OF-1');await mutar('/api/correspondencia',datos('of-1'),409);
+    await mutar('/api/correspondencia',{...datos('OF-1'),remitenteId:otro},201);
+    await mutar('/api/correspondencia',{...datos('OF-1'),sentido:'EMITIDA',remitenteId:propio,destinatarioId:remitente},201);
+    await mutar('/api/correspondencia',{...datos('of-1'),sentido:'EMITIDA',remitenteId:propio,destinatarioId:otro},409);
+    await mutar('/api/correspondencia',datos(null),201);await mutar('/api/correspondencia',datos(null),409);await mutar('/api/correspondencia',{...datos(null),confirmarDuplicado:true},201);
+    const detalle=(await get(ruta(a)+ambito(),sl).expect(200)).body;expect(detalle.correspondencia).toMatchObject({id:a,periodoId:null,remitente:'Unidad A',versionControl:0});expect(detalle.documentos).toEqual([]);
+    expect((await get('/api/correspondencia'+ambito()+'&sentido=RECIBIDA&busqueda=OF-1&interlocutorId='+remitente,sl).expect(200)).body.correspondencias).toEqual([expect.objectContaining({id:a})]);
+    await get('/api/correspondencia?direccionId='+ajena,sl).expect(403);
+    const otroTipo=await id(`INSERT INTO tipo_correspondencia(id_direccion,codigo,nombre) VALUES($1,'X','Tipo ajeno') RETURNING id_tipo_correspondencia::text AS id`,[ajena]);
+    await mutar('/api/correspondencia',{...datos('OF-2'),tipoId:otroTipo},400);
+    await expect(db.query(`INSERT INTO correspondencia(id_direccion,id_tipo_correspondencia,id_remitente,id_destinatario,sentido,asunto,fecha_comunicacion,registrado_por,actualizado_por) VALUES($1,$2,$3,$4,'RECIBIDA','Sin participantes registrados','2026-11-18',$5,$5)`,[d,tipo,remitente,propio,u])).rejects.toMatchObject({code:'23503'});
+  });
+  it('rectifica con justificación, conserva instantáneas y revierte ante fallo de auditoría',async()=>{
+    const a=await alta('RECT-1'),{direccionId,...original}=datos('RECT-1');expect(direccionId).toBe(d);
+    const cambio={...original,asunto:'Asunto corregido',remitenteId:otro,versionControl:0,motivo:'Error de captura'};
+    await mutar(ruta(a)+ambito(),{...cambio,motivo:''},400,'patch');await mutar(ruta(a)+ambito(),cambio,200,'patch');await mutar(ruta(a)+ambito(),cambio,409,'patch');
+    const h=(await get(ruta(a)+'/correcciones'+ambito(),sl).expect(200)).body.correcciones;expect(h).toEqual([expect.objectContaining({versionAnterior:0,versionPosterior:1,motivo:'Error de captura',antes:expect.objectContaining({remitente:'Unidad A'}),despues:expect.objectContaining({remitente:'Unidad B',asunto:'Asunto corregido'})})]);
+    const servicio=app.get(CorrespondenciaService) as unknown as {auditar(...args:unknown[]):Promise<void>};const fallo=jest.spyOn(servicio,'auditar').mockRejectedValueOnce(new Error('Fallo de auditoría inducido para prueba'));
+    try{await mutar(ruta(a)+ambito(),{...cambio,versionControl:1,asunto:'No persistir'},500,'patch');}finally{fallo.mockRestore();}
+    expect((await get(ruta(a)+ambito(),sl).expect(200)).body.correspondencia).toMatchObject({asunto:'Asunto corregido',versionControl:1});expect((await get(ruta(a)+'/correcciones'+ambito(),sl).expect(200)).body.correcciones).toHaveLength(1);
+  });
+  it('asocia antecedentes con versión fijada, conserva historial y comprueba FKs sin duplicidad',async()=>{
+    const a=await alta('VINC-1'),antes=await db.query('SELECT id_version FROM version_documento WHERE id_documento=$1',[doc]);
+    const v=(await mutar(ruta(a)+'/documentos'+ambito(),{documentoId:doc,versionDocumento:0,versionControl:0,versionFijada:1},201)).body.dato.id;
+    expect(await db.query('SELECT id_version FROM version_documento WHERE id_documento=$1',[doc])).toEqual(antes);
+    await mutar(ruta(a)+'/documentos'+ambito(),{documentoId:doc,versionDocumento:0,versionControl:1,versionFijada:1},409);
+    const ve=(await mutar(ruta(a)+'/expedientes'+ambito(),{expedienteId:exp,versionExpediente:0,versionControl:1},201)).body.dato.id;
+    const c=await csrf();await request(app.getHttpServer()).post(`/api/documentos/${doc}/versiones`).set('Cookie',`${s}; ${c.cookie}`).set('x-csrf-token',c.token).field('direccionId',d).field('versionControl','0').attach('archivo',pdf,'segunda.pdf').expect(201);
+    expect((await get(ruta(a)+ambito(),s).expect(200)).body.documentos[0].numeroVersion).toBe(1);
+    expect((await get(ruta(a)+ambito(),sl).expect(200)).body.expedientes).toEqual([]);
+    await mutar(ruta(a)+`/documentos/${v}/retirar`+ambito(),{versionControl:2,motivo:'Retiro'},200,'patch');
+    await mutar(ruta(a)+`/expedientes/${ve}/retirar`+ambito(),{versionControl:3,motivo:'Retiro'},200,'patch');
+    const dinamico=(await mutar(ruta(a)+'/documentos'+ambito(),{documentoId:doc,versionDocumento:1,versionControl:4,versionFijada:null},201)).body.dato.id;
+    expect((await get(ruta(a)+ambito(),s).expect(200)).body.documentos).toEqual(expect.arrayContaining([expect.objectContaining({numeroVersion:2,versionFijada:null}),expect.objectContaining({numeroVersion:1,motivoRetiro:'Retiro'})]));
+    await mutar(ruta(a)+`/documentos/${dinamico}/retirar`+ambito(),{versionControl:5,motivo:'Retiro dinámico'},200,'patch');
+    const c3=await csrf();await request(app.getHttpServer()).post(`/api/documentos/${doc}/versiones`).set('Cookie',`${s}; ${c3.cookie}`).set('x-csrf-token',c3.token).field('direccionId',d).field('versionControl','1').attach('archivo',pdf,'tercera.pdf').expect(201);
+    expect((await get(ruta(a)+ambito(),s).expect(200)).body.documentos).toEqual(expect.arrayContaining([expect.objectContaining({numeroVersion:2,motivoRetiro:'Retiro dinámico'})]));
+    const b=await alta('FK-1');await expect(db.query('INSERT INTO correspondencia_documento(id_correspondencia,id_direccion,id_documento,vinculado_por) VALUES($1,$2,$3,$4)',[b,ajena,doc,u])).rejects.toMatchObject({code:'23503'});
+    expect(await db.query('SELECT id_correspondencia_documento FROM correspondencia_documento WHERE id_correspondencia=$1',[b])).toEqual([]);
+  });
+  it('oculta documentos restringidos y revalida permisos vigentes',async()=>{
+    const a=await alta('SEG-1');const actual=(await get(`/api/documentos/${doc}${ambito()}`,s).expect(200)).body.documento.versionControl;
+    await mutar(ruta(a)+'/documentos'+ambito(),{documentoId:doc,versionDocumento:actual,versionControl:0,versionFijada:1},201);
+    await mutar(`/api/documentos/${doc}/restriccion${ambito()}`,{restringido:true,motivo:'Prueba',versionControl:actual},200,'patch');
+    expect((await get(ruta(a)+ambito(),sl).expect(200)).body.documentos).toEqual([]);expect((await get(ruta(a)+ambito(),s).expect(200)).body.documentos).toHaveLength(1);
+    await get(`/api/documentos/${doc}/versiones/1/archivo${ambito()}`,sl).expect(403);
+    await grant(lector,d,['CORRESPONDENCIA_GESTIONAR']);
+    await mutar(ruta(a)+'/documentos'+ambito(),{documentoId:doc,versionDocumento:actual+1,versionControl:1,versionFijada:1},403,'post',sl);
+    await db.query(`UPDATE asignacion_permiso SET fecha_revocacion=now(),revocado_por=$1 WHERE id_usuario=$2 AND id_direccion=$3 AND id_permiso IN (SELECT id_permiso FROM permiso WHERE codigo='CORRESPONDENCIA_CONSULTAR')`,[u,lector,d]);await get(ruta(a)+ambito(),sl).expect(403);
+  });
+});

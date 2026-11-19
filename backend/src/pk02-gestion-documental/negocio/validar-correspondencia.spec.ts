@@ -1,0 +1,8 @@
+import { validarCorrespondencia,validarCatalogo,referenciaOficial } from './validar-correspondencia';
+const base={direccionId:'1',tipoId:'2',remitenteId:'3',destinatarioId:'4',sentido:'RECIBIDA',asunto:'Oficio',fechaComunicacion:'2026-11-18'};
+describe('Validación CU-05',()=>{
+  it('admite referencia y periodo opcionales y normaliza espacios',()=>{expect(validarCorrespondencia(base,true)).toMatchObject({referenciaOficial:null,periodoId:null,sentido:'RECIBIDA'});expect(referenciaOficial('  OF.  35/2026  ')).toBe('OF. 35/2026');});
+  it('rechaza datos obligatorios, sentidos desconocidos y fechas inexistentes',()=>{expect(()=>validarCorrespondencia({...base,asunto:' '},true)).toThrow();expect(()=>validarCorrespondencia({...base,sentido:'ENVIADA'},true)).toThrow();expect(()=>validarCorrespondencia({...base,fechaComunicacion:'2026-02-30'},true)).toThrow();});
+  it('exige motivo y versión válida en correcciones, sin campos ajenos',()=>{const {direccionId,...datos}=base;expect(direccionId).toBe('1');expect(()=>validarCorrespondencia({...datos,versionControl:0,motivo:''},false)).toThrow();expect(()=>validarCorrespondencia({...datos,versionControl:-1,motivo:'Cambio'},false)).toThrow();expect(()=>validarCorrespondencia({...base,estado:'ENVIADA'},true)).toThrow();expect(validarCorrespondencia({...datos,versionControl:0,motivo:'Cambio'},false).motivo).toBe('Cambio');});
+  it('valida catálogo y no acepta nombres arbitrarios para la propia Dirección',()=>{expect(validarCatalogo({direccionId:'1',tipo:'PROPIA_DIRECCION',nombre:'Otro'},true).nombre).toBe('');expect(()=>validarCatalogo({direccionId:'1',tipo:'OTRO',nombre:'X'},true)).toThrow();});
+});

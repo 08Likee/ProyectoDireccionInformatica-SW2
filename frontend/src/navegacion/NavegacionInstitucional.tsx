@@ -55,6 +55,13 @@ export function EnlaceModuloExpedientes({className}:{className?:string}={}) {
   return <a className={className} href="/expedientes" aria-current={window.location.pathname==='/expedientes'?'page':undefined}>Expedientes</a>;
 }
 
+export function EnlaceModuloCorrespondencia({className}:{className?:string}={}) {
+  const [permisos,setPermisos]=useState<string[]>([]);
+  useEffect(()=>{let vivo=true;void cuentaApi<{perfil:Perfil}>('sesion').then(r=>{if(vivo)setPermisos(r.perfil?.permisosInstitucionales??[]);}).catch(()=>{if(vivo)setPermisos([]);});return()=>{vivo=false;};},[]);
+  if(!permisos.some(p=>['CORRESPONDENCIA_CONSULTAR','CORRESPONDENCIA_GESTIONAR','CORRESPONDENCIA_CATALOGOS_GESTIONAR'].includes(p)))return null;
+  return <a className={className} href="/correspondencia" aria-current={window.location.pathname==='/correspondencia'?'page':undefined}>Correspondencia</a>;
+}
+
 export function NavegacionInstitucional() {
   return <nav className="navegacion-institucional" aria-label="Navegación institucional">
     <a href="/">Inicio</a>
@@ -62,6 +69,7 @@ export function NavegacionInstitucional() {
     <EnlaceAuditoria />
     <EnlaceModuloDocumentos />
     <EnlaceModuloExpedientes />
+      <EnlaceModuloCorrespondencia />
     <a href="/perfil" aria-current={window.location.pathname === '/perfil' ? 'page' : undefined}>Mi cuenta</a>
   </nav>;
 }

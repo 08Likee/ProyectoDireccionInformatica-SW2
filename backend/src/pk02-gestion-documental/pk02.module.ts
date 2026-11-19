@@ -10,9 +10,13 @@ import { ExpedientesService } from './negocio/expedientes.service';
 import { ExpedientesController } from './presentacion/expedientes.controller';
 import { AccesoDocumentalService } from './negocio/acceso-documental.service';
 
+import { CorrespondenciaRepository } from './datos/correspondencia.repository';
+import { CorrespondenciaService } from './negocio/correspondencia.service';
+import { CorrespondenciaController } from './presentacion/correspondencia.controller';
+
 @Module({
   imports: [Pk01Module],
-  controllers: [DocumentosController,ExpedientesController],
-  providers: [ArchivosPrivadosService,DocumentosRepository,DocumentosService,AccesoDocumentalService,ExpedientesRepository,ExpedientesService],
+  controllers: [DocumentosController,ExpedientesController,CorrespondenciaController],
+  providers: [ArchivosPrivadosService,DocumentosRepository,DocumentosService,AccesoDocumentalService,ExpedientesRepository,ExpedientesService,CorrespondenciaRepository,CorrespondenciaService],
 })
 export class Pk02Module {}

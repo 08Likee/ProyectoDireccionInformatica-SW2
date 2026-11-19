@@ -1,0 +1,10 @@
+.corr-catalogos { margin-bottom: 1.25rem; padding-block: .8rem; }
+.corr-catalogos summary, .corr-detalle summary { cursor: pointer; font-weight: 700; margin-bottom: .7rem; }
+.corr-form { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 1rem; }
+.corr-form button, .corr-check { grid-column: 1 / -1; }
+.corr-check { display: flex!important; flex-direction: row!important; align-items: center; }
+.corr-check input { width: auto!important; }
+.corr-detalle { scroll-margin-top: 1rem; overflow-wrap: anywhere; }
+.corr-detalle:focus-visible { outline: 2px solid #087bad; outline-offset: 4px; }
+.corr-historial { padding: .7rem; background: #edf5fa; border-radius: .4rem; }
+@media(max-width:680px){.corr-form{grid-template-columns:1fr;}}

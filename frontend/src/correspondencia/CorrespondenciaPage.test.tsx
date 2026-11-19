@@ -1,0 +1,26 @@
+import { afterEach,describe,expect,it,vi } from 'vitest';
+import { cleanup,fireEvent,render,screen,waitFor,within } from '@testing-library/react';
+import { CorrespondenciaPage } from './CorrespondenciaPage';
+afterEach(()=>{cleanup();vi.unstubAllGlobals();vi.restoreAllMocks();});
+const d={id:'7',nombre:'Informática'},tipos=[{id:'1',nombre:'Oficio',codigo:'OF'}],personas=[{id:'2',nombre:'Informática',tipo:'PROPIA_DIRECCION'},{id:'3',nombre:'Decanato',tipo:'UNIDAD_EXTERNA'}];
+const c={id:'8',sentido:'RECIBIDA',tipoId:'1',tipoNombre:'Oficio',periodoId:null,remitenteId:'3',destinatarioId:'2',remitente:'Decanato',destinatario:'Informática',referenciaOficial:null,asunto:'Solicitud académica',fechaComunicacion:'2026-11-18',fechaRegistro:'2026-11-18T10:00:00Z',fechaActualizacion:'2026-11-18T10:00:00Z',referencia:'',observaciones:'',versionControl:0};
+function preparar(gestion:boolean,doc:boolean){const f=vi.fn(async(url:string,opciones?:RequestInit)=>({ok:true,json:async():Promise<unknown>=>{
+  if(url.includes('/cuenta/sesion'))return {perfil:{permisosInstitucionales:['CORRESPONDENCIA_CONSULTAR']}};
+  if(url.includes('/cuenta/csrf'))return {csrfToken:'prueba'};
+  if(url.endsWith('/ambitos'))return {consulta:[d],gestion:gestion?[d]:[],catalogos:gestion?[d]:[],documentos:doc?[d]:[],expedientes:[],cargaDocumental:[]};
+  if(url.includes('/correspondencia/tipos?'))return {tipos};
+  if(url.includes('/correspondencia/interlocutores?'))return {interlocutores:personas};
+  if(url.includes('/correspondencia/periodos?'))return {periodos:[]};
+  if(url.includes('/correspondencia/8/correcciones?'))return {correcciones:[]};
+  if(url.includes('/correspondencia/8?'))return {correspondencia:c,documentos:[],expedientes:[],consultaDocumental:doc,consultaExpedientes:false};
+  if(url==='/api/correspondencia'&&opciones?.method==='POST')return {id:'8'};
+  if(url.includes('/correspondencia?'))return {correspondencias:[c],haySiguiente:false};
+  if(url.includes('/documentos?'))return {documentos:[{id:'9',titulo:'Antecedente',versionControl:1,versionActual:2}],haySiguiente:false};
+  if(url.includes('/documentos/9?'))return {documento:{id:'9',titulo:'Antecedente',versionControl:1,versionActual:2},versiones:[{numeroVersion:2,nombreOriginal:'archivo.pdf'}]};
+  return {};
+}}));vi.stubGlobal('fetch',f);return f;}
+describe('CU-05 interfaz de correspondencia',()=>{
+  it('permite consultar sin ofrecer gestión ni revelar antecedentes no autorizados',async()=>{preparar(false,false);render(<CorrespondenciaPage/>);fireEvent.click(await screen.findByRole('button',{name:/Solicitud académica/}));expect(await screen.findByText('Tu permiso no incluye consulta documental.')).toBeTruthy();expect(screen.getByText('Tu permiso no incluye consulta de expedientes.')).toBeTruthy();expect(screen.queryByText('Registrar comunicación')).toBeNull();expect(screen.queryByText('Rectificar datos')).toBeNull();});
+  it('preselecciona la propia Dirección según el sentido y solicita confirmación del alta',async()=>{const f=preparar(true,false);vi.spyOn(window,'confirm').mockReturnValue(true);render(<CorrespondenciaPage/>);const resumen=await screen.findByText('Registrar comunicación');const panel=resumen.closest('details')!;panel.open=true;const form=within(panel);await waitFor(()=>expect((form.getByLabelText('Destinatario') as HTMLSelectElement).value).toBe('2'));fireEvent.change(form.getByLabelText('Sentido'),{target:{value:'EMITIDA'}});expect((form.getByLabelText('Remitente') as HTMLSelectElement).value).toBe('2');fireEvent.change(form.getByLabelText('Destinatario'),{target:{value:'3'}});fireEvent.change(form.getByLabelText('Tipo de correspondencia'),{target:{value:'1'}});fireEvent.change(form.getByLabelText('Asunto'),{target:{value:'Solicitud académica'}});fireEvent.change(form.getByLabelText('Fecha de comunicación'),{target:{value:'2026-11-18'}});fireEvent.submit(form.getByRole('button',{name:'Revisar y registrar comunicación'}).closest('form')!);await waitFor(()=>expect(f).toHaveBeenCalledWith('/api/correspondencia',expect.objectContaining({method:'POST',body:expect.stringContaining('"sentido":"EMITIDA"')})));expect(window.confirm).toHaveBeenCalledWith(expect.stringContaining('No se registra una actuación de seguimiento.'));});
+  it('fija la versión vigente por defecto y permite una asociación dinámica explícita',async()=>{const f=preparar(true,true);vi.spyOn(window,'confirm').mockReturnValue(true);render(<CorrespondenciaPage/>);fireEvent.click(await screen.findByRole('button',{name:/Solicitud académica/}));const resumen=await screen.findByText('Asociar documento existente');const panel=resumen.closest('details')!;panel.open=true;const form=within(panel);await form.findByRole('option',{name:'Antecedente'});fireEvent.change(form.getByLabelText('Documento'),{target:{value:'9'}});const version=await form.findByLabelText('Tipo de vínculo y versión') as HTMLSelectElement;expect(version.value).toBe('2');fireEvent.change(version,{target:{value:'dinamica'}});fireEvent.submit(form.getByRole('button',{name:'Vincular documento'}).closest('form')!);await waitFor(()=>expect(f).toHaveBeenCalledWith('/api/correspondencia/8/documentos?direccionId=7',expect.objectContaining({method:'POST',body:JSON.stringify({documentoId:'9',versionDocumento:1,versionFijada:null,versionControl:0})})));});
+});
