@@ -17,6 +17,8 @@
 .docs-edicion { display:grid; grid-template-columns:1fr 1fr; gap:2rem; border-top:1px solid #e1ecf4; margin-top:1.4rem; }
 .docs-edicion form { margin-top:1.1rem; }
 .docs-preview { margin-top:1.3rem; padding:1rem; border:1px solid #d5e7f3; border-radius:14px; background:#f3faff; }
+.docs-preview-ayuda a { color:#005a87; font-weight:700; text-decoration:underline; }
+.docs-preview-ayuda a:focus-visible { outline:2px solid #087bad; outline-offset:3px; }
 .docs-preview iframe { width:100%; min-height:550px; border:0; border-radius:10px; background:#fff; }
 .docs-preview img { display:block; max-width:100%; max-height:65vh; margin:1rem auto; object-fit:contain; }
 @media(max-width:800px){.docs-edicion{grid-template-columns:1fr;gap:.4rem;}}

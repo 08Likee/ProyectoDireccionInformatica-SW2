@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import logo from '../assets/logo-informatica.jpg';
 import { solicitudApi } from '../cuenta/api';
@@ -46,6 +46,31 @@ export function AuditoriaPage() {
   const [cargando, setCargando] = useState(true);
   const [buscando, setBuscando] = useState(false);
   const [cargandoDetalle, setCargandoDetalle] = useState(false);
+  const detalleRef = useRef<HTMLElement | null>(null);
+  const botonDetalleRef = useRef<HTMLButtonElement | null>(null);
+
+  function enfocarDetalle() {
+    const reducirMovimiento = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
+    detalleRef.current?.scrollIntoView?.({behavior: reducirMovimiento ? 'instant' : 'smooth', block:'start'});
+    detalleRef.current?.focus({preventScroll:true});
+  }
+
+  // Al seleccionar se monta el panel; al terminar la consulta, ajustar su posición
+  // si el usuario todavía tiene el foco allí (el detalle puede crecer en altura).
+  useEffect(() => {
+    if (seleccionado && (cargandoDetalle || document.activeElement === detalleRef.current)) enfocarDetalle();
+  }, [seleccionado,cargandoDetalle]);
+
+  function abrirDetalle(id: string, boton: HTMLButtonElement) {
+    botonDetalleRef.current = boton;
+    if (seleccionado === id) { enfocarDetalle();return; }
+    setDetalle(null);setErrorDetalle('');setCargandoDetalle(true);setSeleccionado(id);
+  }
+
+  function cerrarDetalle() {
+    setSeleccionado(null);
+    botonDetalleRef.current?.focus();
+  }
 
   useEffect(() => {
     let activo = true;
@@ -149,7 +174,7 @@ export function AuditoriaPage() {
               <td>{fechaVisible(e.fechaHora)}</td><td><strong>{e.accion}</strong></td><td>{e.actor}</td>
               <td>{e.entidad}{e.identificadorEntidad ? <small>Registro {e.identificadorEntidad}</small> : null}</td>
               <td><span className={e.resultado === 'EXITO' ? 'audit-estado-exito' : 'audit-estado-denegado'}>{e.resultado === 'EXITO' ? 'Completada' : 'Rechazada'}</span></td>
-              <td><button type="button" className="admin-boton-claro" onClick={()=>setSeleccionado(e.id)} aria-label={`Ver detalle del evento ${e.id}`}>Ver detalle</button></td>
+              <td><button type="button" className="admin-boton-claro" onClick={event=>abrirDetalle(e.id,event.currentTarget)} aria-label={`Ver detalle del evento ${e.id}`}>Ver detalle</button></td>
             </tr>)}</tbody></table>
           </div>}
           <div className="audit-paginacion">
@@ -158,8 +183,8 @@ export function AuditoriaPage() {
               <button type="button" className="admin-boton-claro" disabled={buscando || !haySiguiente} onClick={()=>setPagina(n=>n+1)}>Siguiente</button></div>
           </div>
         </section>
-        {seleccionado && <section className="admin-panel audit-detalle" aria-label="Detalle de evento">
-          <div className="audit-titulo"><h2>Detalle de evento</h2><button className="admin-boton-claro" type="button" onClick={()=>setSeleccionado(null)}>Cerrar detalle</button></div>
+        {seleccionado && <section ref={detalleRef} tabIndex={-1} className="admin-panel audit-detalle" aria-label="Detalle de evento" aria-busy={cargandoDetalle}>
+          <div className="audit-titulo"><h2>Detalle de evento</h2><button className="admin-boton-claro" type="button" onClick={cerrarDetalle}>Cerrar detalle</button></div>
           {cargandoDetalle && <p role="status">Consultando detalle autorizado...</p>}
           {errorDetalle && <p role="alert" className="admin-mensaje admin-error">{errorDetalle}</p>}
           {detalle && <>

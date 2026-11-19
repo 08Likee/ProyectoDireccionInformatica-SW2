@@ -57,6 +57,7 @@ export function DocumentosPage() {
   const [consultasFinalizadas,setConsultasFinalizadas]=useState(0);
   const desplazarAlResultado=useRef(false);
   const resultadosRef=useRef<HTMLDivElement|null>(null);
+  const solicitudVista=useRef(0);
   const maximoArchivo=configuracion?.limiteBytes ?? 50*1024*1024;
   const limiteMb=maximoArchivo/(1024*1024);
 
@@ -105,9 +106,11 @@ export function DocumentosPage() {
   },[seleccionado?.id,recarga]);
 
   useEffect(()=>()=>{if(preview)URL.revokeObjectURL(preview.url);},[preview]);
+  useEffect(()=>()=>{solicitudVista.current++;},[]);
 
   function limpiarMensajes(){setError('');setMensaje('');}
-  function cambiarDireccion(id:string){desplazarAlResultado.current=false;setDireccionId(id);setPagina(0);setSeleccionado(null);setPreview(null);}
+  function cerrarVista(){solicitudVista.current++;setPreview(null);}
+  function cambiarDireccion(id:string){desplazarAlResultado.current=false;setDireccionId(id);setPagina(0);setSeleccionado(null);cerrarVista();}
   function buscar(e:FormEvent){e.preventDefault();limpiarMensajes();desplazarAlResultado.current=true;setPagina(0);setFiltro(busqueda.trim());setRecarga(n=>n+1);}
   function cambiarNuevo(e:ChangeEvent<HTMLInputElement|HTMLTextAreaElement>){
     setDatosNuevos(prev=>({...prev,[e.target.name]:e.target.value}));
@@ -149,18 +152,27 @@ export function DocumentosPage() {
   }
   async function recuperar(version:Version,vista=false){
     if(!seleccionado)return;limpiarMensajes();setOcupado(true);
+    const solicitud=++solicitudVista.current;
+    if(vista)setPreview(null);
     try {
       const r=await fetch(`${RUTA}/${seleccionado.id}/versiones/${version.numeroVersion}/archivo?direccionId=${encodeURIComponent(direccionId)}`,
         {credentials:'same-origin',cache:'no-store'});
       if(!r.ok){const e=await r.json().catch(()=>({})) as {message?:string};throw new Error(e.message??'No se pudo recuperar el archivo.');}
-      const blob=await r.blob();const url=URL.createObjectURL(blob);
-      if(vista && ['application/pdf','image/png','image/jpeg'].includes(version.tipoMime)){
-        setPreview({url,tipo:version.tipoMime,nombre:version.nombreOriginal});
+      const blob=await r.blob();
+      if(vista){
+        if(solicitud!==solicitudVista.current)return;
+        // Solo se incrustan formatos de vista previa autorizados por el servidor.
+        // No convertir una respuesta HTML u otro contenido inesperado en un PDF.
+        if(!['application/pdf','image/png','image/jpeg'].includes(version.tipoMime) || blob.type!==version.tipoMime){
+          throw new Error('El tipo de archivo recibido no coincide con el documento. No se puede mostrar la vista previa.');
+        }
+        setPreview({url:URL.createObjectURL(blob),tipo:version.tipoMime,nombre:version.nombreOriginal});
       } else {
+        const url=URL.createObjectURL(blob);
         const a=document.createElement('a');a.href=url;a.download=version.nombreOriginal;
         document.body.appendChild(a);a.click();a.remove();window.setTimeout(()=>URL.revokeObjectURL(url),60_000);
       }
-    } catch(e){setError(mensajeError(e));}finally{setOcupado(false);}
+    } catch(e){if(!vista||solicitud===solicitudVista.current)setError(mensajeError(e));}finally{setOcupado(false);}
   }
 
   return <div className="admin-pagina docs-pagina">
@@ -205,7 +217,7 @@ export function DocumentosPage() {
               <p role="status" className="admin-ayuda">{buscando ? 'Buscando documentos...' : documentos.length
                 ? `${documentos.length} ${documentos.length===1 ? 'documento encontrado' : 'documentos encontrados'} en esta página.` : 'No se encontraron documentos para esta búsqueda.'}</p>
               {!buscando && !!documentos.length && <ul className="docs-lista">{documentos.map(d=><li key={d.id}>
-                <button type="button" className="admin-boton-claro docs-documento" onClick={()=>{setSeleccionado(d);setPreview(null);}}>
+                <button type="button" className="admin-boton-claro docs-documento" onClick={()=>{if(seleccionado?.id!==d.id)setVersiones([]);setSeleccionado(d);cerrarVista();}}>
                   <strong>{d.titulo}</strong><small>{d.categoria} · Versión {d.versionActual} · {bytes(d.tamano)}</small>
                 </button></li>)}</ul>}
               <div className="docs-paginas"><span>Página {pagina+1}</span><div>
@@ -220,7 +232,7 @@ export function DocumentosPage() {
         {seleccionado && puedeLeer && <section className="admin-panel docs-detalle" aria-label="Detalle documental">
           <div className="docs-detalle-cabecera"><div><p className="admin-sobre">Detalle documental</p>
             <h2>{seleccionado.titulo}</h2></div>
-            <button type="button" className="admin-boton-claro" onClick={()=>{setSeleccionado(null);setPreview(null);}}>Cerrar detalle</button></div>
+            <button type="button" className="admin-boton-claro" onClick={()=>{setSeleccionado(null);cerrarVista();}}>Cerrar detalle</button></div>
           <p className="admin-ayuda">Categoría: {seleccionado.categoria}. Versión actual: {seleccionado.versionActual}.</p>
           <h3>Versiones disponibles</h3>
           <ul className="docs-versiones">{versiones.map(v=><li key={v.id}>
@@ -231,9 +243,14 @@ export function DocumentosPage() {
               <button type="button" disabled={ocupado} onClick={()=>void recuperar(v)}>Descargar</button>
             </div></li>)}</ul>
           {preview && <div className="docs-preview"><div className="docs-detalle-cabecera"><h3>Vista previa: {preview.nombre}</h3>
-            <button className="admin-boton-claro" type="button" onClick={()=>setPreview(null)}>Cerrar vista previa</button></div>
-            {preview.tipo==='application/pdf' ? <iframe sandbox="" title={`Vista previa de ${preview.nombre}`} src={preview.url} />
-              : <img src={preview.url} alt={`Vista previa de ${preview.nombre}`} />}</div>}
+            <button className="admin-boton-claro" type="button" onClick={cerrarVista}>Cerrar vista previa</button></div>
+            {preview.tipo==='application/pdf' ? <>
+              <p className="admin-ayuda docs-preview-ayuda">Si el visor no muestra el PDF, <a href={preview.url}
+                target="_blank" rel="noopener noreferrer">abrir PDF en otra pestaña</a> o utilizá la opción Descargar de la versión correspondiente.</p>
+              {/* El visor PDF nativo no funciona en algunos navegadores con sandbox vacío.
+                  Se usa exclusivamente el blob PDF obtenido y validado arriba. */}
+              <iframe title={`Vista previa de ${preview.nombre}`} src={preview.url} referrerPolicy="no-referrer" />
+            </> : <img src={preview.url} alt={`Vista previa de ${preview.nombre}`} />}</div>}
           {puedeGestionar && <div className="docs-edicion">
             <form onSubmit={guardarMetadatos} className="admin-form"><h3>Corregir metadatos</h3>
               <label>Título<input name="titulo" value={edicion.titulo} maxLength={160} minLength={2} required onChange={cambiarEdicion}/></label>

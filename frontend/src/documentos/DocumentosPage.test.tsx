@@ -68,3 +68,98 @@ describe('Gestión documental institucional',()=>{
     expect(screen.queryByRole('heading',{name:'Incorporar documento'})).toBeNull();
   });
 });
+
+// Estas pruebas verifican el contrato del visor y su seguridad en el DOM;
+// la representación del PDF corresponde al navegador real, no a jsdom.
+function simularVista(tipoMime='application/pdf',tipoRecibido=tipoMime,denegado=false) {
+  const nombreOriginal=tipoMime==='image/png'?'imagen.png':'informe.pdf';
+  const documento={id:'8',direccionId:'7',titulo:'Informe de prueba',categoria:'Institucional',descripcion:'',
+    versionActual:1,versionControl:0,nombreArchivo:nombreOriginal,tipoMime,tamano:'100',fechaCreacion:'2026-11-18T00:00:00Z'};
+  const version={id:'10',numeroVersion:1,nombreOriginal,tipoMime,tamanoBytes:'100',fechaCreacion:documento.fechaCreacion};
+  const crearUrl=vi.fn(()=> 'blob:http://localhost/archivo-prueba');
+  const revocarUrl=vi.fn();
+  vi.stubGlobal('URL',class extends URL {
+    static createObjectURL=crearUrl;
+    static revokeObjectURL=revocarUrl;
+  });
+  const archivo=vi.fn(async()=>({ok:!denegado,json:async()=>({message:'Permiso insuficiente.'}),
+    blob:async()=>new Blob(['contenido de prueba'],{type:tipoRecibido})}));
+  const consultar=vi.fn(async(url:string)=>{
+    if(url.includes('/archivo?'))return archivo();
+    return {ok:true,json:async()=>{
+      if(url.includes('/cuenta/sesion'))return {perfil:{permisosInstitucionales:['DOCUMENTOS_CONSULTAR']}};
+      if(url.endsWith('/ambitos'))return {consulta:[{id:'7',codigo:'I',nombre:'Informática'}],gestion:[],limiteBytes:52428800,formatos:['PDF','PNG']};
+      if(url.includes('/documentos?'))return {documentos:[documento],pagina:0,haySiguiente:false};
+      if(url.includes('/documentos/8?'))return {documento,versiones:[version]};
+      return {};
+    }};
+  });
+  vi.stubGlobal('fetch',consultar);
+  return {crearUrl,revocarUrl,consultar,nombreOriginal,archivo};
+}
+
+async function abrirVista() {
+  render(<DocumentosPage/>);
+  fireEvent.click(await screen.findByRole('button',{name:/Informe de prueba/}));
+  fireEvent.click(await screen.findByRole('button',{name:'Vista previa'}));
+}
+
+describe('Vista previa autorizada de documentos',()=>{
+  it('usa el visor nativo para PDF y permite abrir el mismo blob en otra pestaña',async()=>{
+    const {crearUrl,revocarUrl,consultar}=simularVista();
+    await abrirVista();
+    const visor=await screen.findByTitle('Vista previa de informe.pdf');
+    expect(visor.tagName).toBe('IFRAME');
+    expect(visor.hasAttribute('sandbox')).toBe(false);
+    expect(visor.getAttribute('src')).toBe('blob:http://localhost/archivo-prueba');
+    expect(consultar).toHaveBeenCalledWith('/api/documentos/8/versiones/1/archivo?direccionId=7',
+      {credentials:'same-origin',cache:'no-store'});
+    expect(crearUrl).toHaveBeenCalledTimes(1);
+    const enlace=screen.getByRole('link',{name:'abrir PDF en otra pestaña'});
+    expect(enlace.getAttribute('href')).toBe(visor.getAttribute('src'));
+    expect(enlace.getAttribute('target')).toBe('_blank');
+    expect(enlace.getAttribute('rel')).toBe('noopener noreferrer');
+    fireEvent.click(screen.getByRole('button',{name:'Cerrar vista previa'}));
+    expect(screen.queryByTitle('Vista previa de informe.pdf')).toBeNull();
+    await waitFor(()=>expect(revocarUrl).toHaveBeenCalledWith('blob:http://localhost/archivo-prueba'));
+  });
+  it('mantiene las imágenes en su visor específico',async()=>{
+    simularVista('image/png');
+    await abrirVista();
+    const imagen=await screen.findByRole('img',{name:'Vista previa de imagen.png'});
+    expect(imagen.getAttribute('src')).toBe('blob:http://localhost/archivo-prueba');
+    expect(screen.queryByRole('link',{name:'abrir PDF en otra pestaña'})).toBeNull();
+  });
+  it('rechaza contenido HTML inesperado aun cuando la metadata anuncie PDF',async()=>{
+    const {crearUrl}=simularVista('application/pdf','text/html');
+    await abrirVista();
+    expect(await screen.findByText(/El tipo de archivo recibido no coincide/)).toBeTruthy();
+    expect(screen.queryByTitle('Vista previa de informe.pdf')).toBeNull();
+    expect(crearUrl).not.toHaveBeenCalled();
+  });
+  it('no crea un blob cuando el servidor deniega la recuperación',async()=>{
+    const {crearUrl}=simularVista('application/pdf','application/pdf',true);
+    await abrirVista();
+    expect(await screen.findByText('Permiso insuficiente.')).toBeTruthy();
+    expect(screen.queryByTitle('Vista previa de informe.pdf')).toBeNull();
+    expect(crearUrl).not.toHaveBeenCalled();
+  });
+  it('descarta una respuesta tardía si el usuario cerró el detalle',async()=>{
+    const {crearUrl,archivo}=simularVista();
+    let resolver!:()=>void;
+    archivo.mockImplementationOnce(async()=>{
+      await new Promise<void>(resolve=>{resolver=resolve;});
+      return {ok:true,json:async()=>({message:''}),blob:async()=>new Blob(['pdf'],{type:'application/pdf'})};
+    });
+    await abrirVista();
+    await waitFor(()=>expect(archivo).toHaveBeenCalled());
+    fireEvent.click(screen.getByRole('button',{name:'Cerrar detalle'}));
+    resolver();
+    // Esperar el restablecimiento de la acción, después de procesar la respuesta.
+    fireEvent.click(screen.getByRole('button',{name:/Informe de prueba/}));
+    const boton=await screen.findByRole('button',{name:'Vista previa'});
+    await waitFor(()=>expect(boton.hasAttribute('disabled')).toBe(false));
+    expect(crearUrl).not.toHaveBeenCalled();
+    expect(screen.queryByTitle('Vista previa de informe.pdf')).toBeNull();
+  });
+});

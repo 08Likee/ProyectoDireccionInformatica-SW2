@@ -1,5 +1,7 @@
 /* Consulta institucional de auditoría: estilo coherente con PK01 y adaptable a móvil. */
 .audit-filtros,.audit-resultados,.audit-detalle { margin-bottom:1.4rem; }
+.audit-detalle { scroll-margin-top:1rem; }
+.audit-detalle:focus-visible { outline:2px solid #087bad; outline-offset:4px; }
 .audit-form { display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:1rem;align-items:end; }
 .audit-form label { display:flex;flex-direction:column;gap:.4rem;color:#193b59;font-size:.9rem;font-weight:650;min-width:0; }
 .audit-form input,.audit-form select { width:100%;min-width:0;background:#fff;color:#153c5d;font:inherit;padding:.78rem .85rem;border:1px solid #bed6e9;border-radius:11px; }

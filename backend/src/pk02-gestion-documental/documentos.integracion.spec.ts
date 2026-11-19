@@ -3,13 +3,45 @@ import { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import request from 'supertest';
 import { DataSource } from 'typeorm';
-import { randomBytes } from 'node:crypto';
-import { unlink } from 'node:fs/promises';
+import { createHash, randomBytes } from 'node:crypto';
+import { mkdir, mkdtemp, readdir, readFile, rm, unlink } from 'node:fs/promises';
 import { join } from 'node:path';
 import { AppModule } from '../app.module';
 import { hashToken, tokenAleatorio } from '../infraestructura/seguridad/seguridad.util';
+import { TAMANO_MAXIMO_ARCHIVO } from './negocio/validar-archivo';
 
 const pdf=Buffer.from('%PDF-1.7\n1 0 obj << >> endobj\n%%EOF');
+const MIB=1024*1024;
+
+/** PDF de una página, con un stream de espacios y referencias xref válidas.
+ * Su tamaño exacto permite probar el transporte y la persistencia sin archivos externos. */
+function pdfDeTamano(tamano:number):Buffer {
+  let inicio='%PDF-1.4\n';
+  const offsets:number[]=[];
+  const objetos=[
+    '<< /Type /Catalog /Pages 2 0 R >>',
+    '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
+    '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << >> /Contents 4 0 R >>',
+  ];
+  for(const [i,objeto] of objetos.entries()) {
+    offsets.push(inicio.length);
+    inicio+=`${i+1} 0 obj\n${objeto}\nendobj\n`;
+  }
+  offsets.push(inicio.length);
+  const partes=(longitud:number)=>{
+    const cabecera=`${inicio}4 0 obj\n<< /Length ${String(longitud).padStart(10,'0')} >>\nstream\n`;
+    const finStream='\nendstream\nendobj\n';
+    const xref=cabecera.length+longitud+finStream.length;
+    const cola=`${finStream}xref\n0 5\n0000000000 65535 f \n${offsets.map(n=>`${String(n).padStart(10,'0')} 00000 n \n`).join('')}trailer\n<< /Size 5 /Root 1 0 R >>\nstartxref\n${String(xref).padStart(10,'0')}\n%%EOF\n`;
+    return {cabecera,cola};
+  };
+  const vacio=partes(0);
+  const longitud=tamano-vacio.cabecera.length-vacio.cola.length;
+  if(longitud<0)throw new Error('Tamaño PDF de prueba insuficiente.');
+  const {cabecera,cola}=partes(longitud);
+  return Buffer.concat([Buffer.from(cabecera,'ascii'),Buffer.alloc(longitud,' '),Buffer.from(cola,'ascii')]);
+}
+function sha256(datos:Buffer):string {return createHash('sha256').update(datos).digest('hex');}
 
 describe('CU-07 integración HTTP + PostgreSQL + archivos privados',()=>{
   let app:INestApplication;
@@ -17,10 +49,16 @@ describe('CU-07 integración HTTP + PostgreSQL + archivos privados',()=>{
   let usuario=''; let comun=''; let direccion='';let ajena='';let sesion='';let sesionComun='';
   let doc='';let asignacionLectura='';let asignacionGestion='';
   const sufijo=randomBytes(7).toString('hex');
+  const raizOriginal=process.env.DOCUMENTOS_RAIZ;
+  let raizPrueba='';
   async function id(sql:string,args:unknown[]):Promise<string>{
     const filas=await db.query(sql,args) as Array<{id:string}>;return filas[0].id;
   }
   beforeAll(async()=>{
+    const raiz=raizOriginal??'/app/almacen-documentos';
+    await mkdir(raiz,{recursive:true,mode:0o700});
+    raizPrueba=await mkdtemp(join(raiz,'prueba-cu07-'));
+    process.env.DOCUMENTOS_RAIZ=raizPrueba;
     const modulo=await Test.createTestingModule({imports:[AppModule]}).compile();
     app=modulo.createNestApplication();await app.init();db=app.get(DataSource);
     const crear=(nombre:string)=>id(`INSERT INTO usuario(identificador_personal,nombres,apellidos,correo,
@@ -61,6 +99,9 @@ describe('CU-07 integración HTTP + PostgreSQL + archivos privados',()=>{
       if(usuario&&comun)await db.query('DELETE FROM usuario WHERE id_usuario=ANY($1::bigint[])',[[usuario,comun]]);
     }
     if(app)await app.close();
+    if(raizOriginal===undefined)delete process.env.DOCUMENTOS_RAIZ;
+    else process.env.DOCUMENTOS_RAIZ=raizOriginal;
+    if(raizPrueba)await rm(raizPrueba,{recursive:true,force:true});
   },40_000);
   async function csrf(){
     const r=await request(app.getHttpServer()).get('/api/cuenta/csrf').expect(200);
@@ -119,6 +160,63 @@ describe('CU-07 integración HTTP + PostgreSQL + archivos privados',()=>{
       AND identificador_entidad=$2 ORDER BY id_auditoria`,[direccion,doc]) as Array<{accion:string}>;
     expect(auditoria.map(x=>x.accion)).toEqual(['DOCUMENTO_CREAR','DOCUMENTO_ACTUALIZAR','DOCUMENTO_NUEVA_VERSION']);
   });
+  it('persiste y recupera archivos mayores de 10 MiB y de 50 MiB exactos; rechaza el exceso sin inconsistencias',async()=>{
+    // No declarar aprobada la capacidad de 50 MiB si se ejecuta con una configuración inferior.
+    expect(TAMANO_MAXIMO_ARCHIVO).toBe(50*MIB);
+    const c=await csrf();
+    const cookie=`${sesion}; ${c.cookie}`;
+    const primera=pdfDeTamano(10*MIB+1);
+    const limite=pdfDeTamano(50*MIB);
+    const exceso=pdfDeTamano(50*MIB+1);
+    expect(primera.length).toBe(10*MIB+1);
+    expect(limite.length).toBe(50*MIB);
+    expect(exceso.length).toBe(50*MIB+1);
+    const crear=(archivo:Buffer)=>request(app.getHttpServer()).post('/api/documentos')
+      .set('Cookie',cookie).set('x-csrf-token',c.token)
+      .field('direccionId',direccion).field('titulo','Prueba del límite documental')
+      .field('categoria','Pruebas').attach('archivo',archivo,'limite.pdf');
+    const entrega=await crear(primera).expect(201);
+    const idLimite=entrega.body.id as string;
+    const version=(archivo:Buffer,control:number)=>request(app.getHttpServer()).post(`/api/documentos/${idLimite}/versiones`)
+      .set('Cookie',cookie).set('x-csrf-token',c.token)
+      .field('direccionId',direccion).field('versionControl',String(control)).attach('archivo',archivo,'version-limite.pdf');
+    await version(limite,0).expect(201);
+    const filas=await db.query(`SELECT numero_version AS numero,tamano_bytes::text AS tamano,
+      sha256,clave_archivo::text AS clave FROM version_documento WHERE id_documento=$1 ORDER BY numero_version`,
+    [idLimite]) as Array<{numero:number;tamano:string;sha256:string;clave:string}>;
+    expect(filas).toHaveLength(2);
+    for(const [i,esperado] of [primera,limite].entries()) {
+      const fila=filas[i];
+      expect(fila.numero).toBe(i+1);
+      expect(fila.tamano).toBe(String(esperado.length));
+      const hash=sha256(esperado);
+      expect(fila.sha256.trim()).toBe(hash);
+      const almacenado=await readFile(join(raizPrueba,fila.clave));
+      expect(almacenado.length).toBe(esperado.length);
+      expect(sha256(almacenado)).toBe(hash);
+      const descarga=await request(app.getHttpServer()).get(`/api/documentos/${idLimite}/versiones/${i+1}/archivo?direccionId=${direccion}`)
+        .set('Cookie',sesion).expect(200);
+      expect(descarga.headers['content-length']).toBe(String(esperado.length));
+      expect(Buffer.isBuffer(descarga.body)).toBe(true);
+      const recuperado=descarga.body as Buffer;
+      expect(recuperado.length).toBe(esperado.length);
+      expect(sha256(recuperado)).toBe(hash);
+    }
+    const estado=async()=>({
+      documentos:await db.query('SELECT id_documento,version_actual,version_control FROM documento WHERE id_direccion=$1 ORDER BY id_documento',[direccion]),
+      versiones:await db.query(`SELECT v.id_version,v.tamano_bytes,v.sha256,v.clave_archivo FROM version_documento v
+        JOIN documento d ON d.id_documento=v.id_documento WHERE d.id_direccion=$1 ORDER BY v.id_version`,[direccion]),
+      auditoria:await db.query('SELECT id_auditoria,accion FROM registro_auditoria WHERE id_direccion=$1 ORDER BY id_auditoria',[direccion]),
+      archivos:(await readdir(raizPrueba)).sort(),
+    });
+    const antes=await estado();
+    await crear(exceso).expect(413);
+    await version(exceso,1).expect(413);
+    // La restricción SQL permanece efectiva aunque se omita el controlador.
+    await expect(db.query('UPDATE version_documento SET tamano_bytes=$2 WHERE id_documento=$1 AND numero_version=2',
+      [idLimite,50*MIB+1])).rejects.toMatchObject({driverError:{code:'23514'}});
+    expect(await estado()).toEqual(antes);
+  },180_000);
   it('revocar permisos bloquea descargas nuevas incluso con sesión abierta',async()=>{
     await request(app.getHttpServer()).get(`/api/documentos/${doc}/versiones/1/archivo?direccionId=${ajena}`)
       .set('Cookie',sesion).expect(403);

@@ -101,7 +101,8 @@ Respaldar **tanto** la base PostgreSQL **como** `documentos_nest_data` antes de 
 ya que se necesitan ambos para conservar referencias consistentes.
 
 Parámetros **técnicos provisionales**, sujetos a validación institucional: PDF, DOCX, XLSX,
-CSV UTF-8, JPG/JPEG y PNG; 10 MiB por archivo. Se verifica el tipo mediante firma/estructura
+CSV UTF-8, JPG/JPEG y PNG; por defecto 50 MiB por archivo (`DOCUMENTOS_MAX_MB`,
+configurable entre 1 y 50). PostgreSQL conserva un techo de 50 MiB. Se verifica el tipo mediante firma/estructura
 básica, tamaño, hash SHA-256, vigencia de permisos y ubicación institucional. Esto **no**
 sustituye un análisis antivirus formal para despliegues institucionales.
 
@@ -112,3 +113,7 @@ No se ha implementado eliminación definitiva de documentos, para no destruir an
 
 Pruebas: `docker compose exec backend npm test`, `npm run test:integration`, `npm run build`,
 `npm run lint`; y `docker compose exec frontend npm test`, `npm run build`.
+Para comprobar la capacidad máxima, ejecutar `docker compose exec -e DOCUMENTOS_MAX_MB=50 backend npm run test:integration`.
+La prueba documental de límite usa una Dirección de prueba y un subdirectorio aislado del almacén.
+Revertir el código no revierte la migración. Volver a 10 MiB requiere que no existan versiones mayores;
+la migración descendente rechaza esa reducción si hay datos incompatibles, sin eliminarlos.

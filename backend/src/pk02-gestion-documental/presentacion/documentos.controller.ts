@@ -1,9 +1,18 @@
-import { Body, Controller, Get, Param, Patch, Post, Query, Req, Res, UploadedFile, UseInterceptors } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, PayloadTooLargeException, Post, Query, Req, Res, UploadedFile, UseInterceptors } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import type { Request, Response } from 'express';
 import { leerCookie, SESION_COOKIE } from '../../infraestructura/seguridad/csrf.guard';
 import { DocumentosService } from '../negocio/documentos.service';
 import { ArchivoSubido, TAMANO_MAXIMO_ARCHIVO } from '../negocio/validar-archivo';
+
+// Busboy puede marcar el límite al alcanzarlo. El servicio valida el máximo inclusivo;
+// un byte adicional permite aceptar exactamente ese máximo sin aceptar archivos mayores.
+const LIMITE_MULTIPART = TAMANO_MAXIMO_ARCHIVO + 1;
+function comprobarLimite(archivo?: ArchivoSubido): void {
+  if (archivo && archivo.size > TAMANO_MAXIMO_ARCHIVO) {
+    throw new PayloadTooLargeException('El archivo supera el límite de tamaño permitido.');
+  }
+}
 
 @Controller('api/documentos')
 export class DocumentosController {
@@ -19,8 +28,9 @@ export class DocumentosController {
   }
 
   @Post()
-  @UseInterceptors(FileInterceptor('archivo',{limits:{fileSize:TAMANO_MAXIMO_ARCHIVO,files:1,fields:4,parts:5,fieldSize:1500}}))
+  @UseInterceptors(FileInterceptor('archivo',{limits:{fileSize:LIMITE_MULTIPART,files:1,fields:4,parts:5,fieldSize:1500}}))
   crear(@Req() req: Request, @Body() datos: Record<string,unknown>, @UploadedFile() archivo?: ArchivoSubido) {
+    comprobarLimite(archivo);
     return this.documentos.crear(this.token(req),datos,archivo);
   }
 
@@ -36,9 +46,10 @@ export class DocumentosController {
   }
 
   @Post(':id/versiones')
-  @UseInterceptors(FileInterceptor('archivo',{limits:{fileSize:TAMANO_MAXIMO_ARCHIVO,files:1,fields:2,parts:3,fieldSize:1500}}))
+  @UseInterceptors(FileInterceptor('archivo',{limits:{fileSize:LIMITE_MULTIPART,files:1,fields:2,parts:3,fieldSize:1500}}))
   version(@Req() req: Request, @Param('id') id: string, @Body() datos: Record<string,unknown>,
     @UploadedFile() archivo?: ArchivoSubido) {
+    comprobarLimite(archivo);
     return this.documentos.nuevaVersion(this.token(req),id,datos,archivo);
   }
 
