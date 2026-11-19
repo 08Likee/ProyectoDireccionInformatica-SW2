@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { AutorizacionesPage } from './AutorizacionesPage';
 
 afterEach(()=>{cleanup();vi.unstubAllGlobals();});
@@ -47,6 +47,22 @@ describe('Administración institucional',()=>{
     expect(await screen.findByRole('link', { name: 'Administración' })).toBeTruthy();
   });
 
+  it('muestra errores de revocación en un aviso flotante junto al usuario',async()=>{
+    vi.stubGlobal('fetch',vi.fn(async(url:string)=>({ok:true,json:async()=>{
+      if(url.includes('/cuenta/sesion'))return {perfil:{permisosInstitucionales:['AUTORIZACIONES_ADMINISTRAR']}};
+      if(url.includes('/contexto'))return {direccion:{id:'1',codigo:'I',nombre:'Informática'},permisos:['AUTORIZACIONES_ADMINISTRAR']};
+      if(url.includes('/catalogo'))return {roles:[{id_rol:'2',nombre:'Coordinación',descripcion:'',
+        es_sistema:false,version_control:0,estado:'ACTIVO',permisos:[]}],permisos:[]};
+      return {asignaciones:[{id:'10',tipo:'ROL',usuario_id:'2',destinatario:'Cuenta auxiliar',
+        referencia_id:'2',referencia:'Coordinación',fecha_inicio:'2025-01-01T00:00:00Z',
+        fecha_fin:null,fecha_revocacion:null}]};
+    }})));
+    render(<AutorizacionesPage/>);
+    expect(await screen.findByText('Cuenta auxiliar')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button',{name:'Revocar'}));
+    expect(await screen.findByRole('alert')).toBeTruthy();
+    expect(screen.getByRole('alert').className).toContain('admin-aviso-fijo');
+  });
   it('no presenta operaciones administrativas cuando falla la autorización',async()=>{
     vi.stubGlobal('fetch',vi.fn().mockResolvedValue({ok:false,json:async()=>({message:'Acceso institucional no autorizado.'})}));
     render(<AutorizacionesPage/>);

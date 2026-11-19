@@ -35,11 +35,25 @@ export function EnlaceAuditoria({ className }: { className?: string }) {
 }
 
 /** Menú compartido de las páginas privadas, sin enlaces a módulos aún no implementados. */
+/** Una sola opción si tiene consulta; si solo posee gestión también debe ver el módulo. */
+export function EnlaceModuloDocumentos({ className }: { className?: string } = {}) {
+  const [permisos, setPermisos] = useState<string[]>([]);
+  useEffect(() => {let vivo=true;
+    void cuentaApi<{perfil:Perfil}>('sesion').then(r=>{
+      if(vivo)setPermisos(r.perfil.permisosInstitucionales??[]);
+    }).catch(()=>{if(vivo)setPermisos([]);});
+    return()=>{vivo=false;};
+  },[]);
+  if (!permisos.includes('DOCUMENTOS_CONSULTAR') && !permisos.includes('DOCUMENTOS_GESTIONAR')) return null;
+  return <a className={className} href="/documentos" aria-current={window.location.pathname==='/documentos'?'page':undefined}>Documentos</a>;
+}
+
 export function NavegacionInstitucional() {
   return <nav className="navegacion-institucional" aria-label="Navegación institucional">
     <a href="/">Inicio</a>
     <EnlaceAdministracion />
     <EnlaceAuditoria />
+    <EnlaceModuloDocumentos />
     <a href="/perfil" aria-current={window.location.pathname === '/perfil' ? 'page' : undefined}>Mi cuenta</a>
   </nav>;
 }

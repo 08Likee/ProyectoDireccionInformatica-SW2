@@ -42,7 +42,7 @@ function fechaISO(valor: unknown, nombre: string): Date | undefined {
 
 /** Lista explícita de campos que pueden consultarse. Nunca se devuelven JSONB sin depurar. */
 const CAMPOS_PUBLICABLES = new Set(['nombre','permisos','codigos','codigo','usuarioId','direccionId',
-  'rolId','fechaFin','fechaInicio','referencia']);
+  'rolId','fechaFin','fechaInicio','referencia','version','cambios']);
 
 export function camposAuditables(valor: unknown): Record<string, unknown> | null {
   if (!valor || typeof valor !== 'object' || Array.isArray(valor)) return null;

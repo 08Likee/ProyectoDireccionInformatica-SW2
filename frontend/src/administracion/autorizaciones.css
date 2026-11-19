@@ -52,6 +52,13 @@
 .admin-mensaje { padding:.95rem 1.15rem; border-radius:12px; margin-bottom:1.2rem; border:1px solid; }
 .admin-exito { background:#eaf8ef; color:#08633b; border-color:#b0e7c6; }
 .admin-error { background:#ffeff1; color:#9d2434; border-color:#f6c1c9; }
+/* Confirmaciones y errores visibles aunque el formulario esté al final de la página. */
+.admin-aviso-fijo { position:fixed; right:1.1rem; bottom:1.1rem; z-index:50; width:min(430px,calc(100vw - 2.2rem));
+  margin:0; box-shadow:0 12px 35px #102d4540; display:flex; justify-content:space-between; align-items:start; gap:.85rem; }
+.admin-aviso-fijo>span { overflow-wrap:anywhere; }
+.admin-aviso-fijo button { color:inherit; background:transparent; border:1px solid currentColor; border-radius:8px;
+  padding:.2rem .5rem; cursor:pointer; font:inherit; font-size:.8rem; font-weight:700; flex-shrink:0; }
+.admin-aviso-fijo button:focus-visible { outline:2px solid #065b83; outline-offset:2px; }
 .admin-tabla-contenedor { width:100%; overflow-x:auto; }
 .admin-tabla { border-collapse:collapse; width:100%; min-width:790px; text-align:left; }
 .admin-tabla th,.admin-tabla td { padding:.85rem .7rem; border-bottom:1px solid #e1ecf4; vertical-align:top; font-size:.9rem; }

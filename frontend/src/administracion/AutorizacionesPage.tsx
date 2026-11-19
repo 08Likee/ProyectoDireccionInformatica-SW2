@@ -3,6 +3,7 @@ import type { FormEvent } from 'react';
 import logo from '../assets/logo-informatica.jpg';
 import { solicitudApi } from '../cuenta/api';
 import { NavegacionInstitucional } from '../navegacion/NavegacionInstitucional';
+import { AvisoOperacion } from './AvisoOperacion';
 import './autorizaciones.css';
 
 type Contexto = { direccion: { id: string; codigo: string; nombre: string }; permisos: string[] };
@@ -79,7 +80,7 @@ export function AutorizacionesPage() {
   }
   const buscar = (event: FormEvent) => {
     event.preventDefault();
-    if (busqueda.trim().length < 2) { setError('Escribí al menos dos caracteres para buscar una cuenta.');return; }
+    if (busqueda.trim().length < 2) { setExito('');setError('Escribí al menos dos caracteres para buscar una cuenta.');return; }
     void ejecutar(async () => {
       const r=await solicitudApi<{usuarios:Usuario[]}>(`${raiz}/usuarios?q=${encodeURIComponent(busqueda.trim())}`);
       setUsuarios(r.usuarios);
@@ -112,10 +113,10 @@ export function AutorizacionesPage() {
   function asignar(event: FormEvent, tipo: 'ROL' | 'PERMISO') {
     event.preventDefault();
     const usuario=usuarios.find(u=>u.id===seleccionado);
-    if (!usuario) {setError('Seleccioná una cuenta verificada.');return;}
+    if (!usuario) {setExito('');setError('Seleccioná una cuenta verificada.');return;}
     const elegido=tipo==='ROL' ? catalogo.roles.find(r=>r.id_rol===rolElegido) :
       catalogo.permisos.find(p=>p.codigo===permisoElegido);
-    if (!elegido) {setError('Seleccioná una autorización válida.');return;}
+    if (!elegido) {setExito('');setError('Seleccioná una autorización válida.');return;}
     const nombre=tipo==='ROL' ? (elegido as Rol).nombre : (elegido as Permiso).operacion;
     if (!window.confirm(`Vas a asignar «${nombre}» a ${usuario.nombres} ${usuario.apellidos} (${usuario.correo}), ${vencimiento ? `hasta ${fechaLegible(finUTC(vencimiento))}` : 'sin vencimiento'}. ¿Confirmás?`)) return;
     void ejecutar(async () => {
@@ -125,7 +126,7 @@ export function AutorizacionesPage() {
     });
   }
   function revocar(a:Asignacion) {
-    if (motivo.trim().length<4) {setError('Indicá el motivo de revocación (mínimo cuatro caracteres).');return;}
+    if (motivo.trim().length<4) {setExito('');setError('Indicá el motivo de revocación (mínimo cuatro caracteres).');return;}
     if (!window.confirm(`¿Confirmás revocar «${a.referencia}» de ${a.destinatario}? El acceso dejará de autorizar nuevas operaciones.`)) return;
     void ejecutar(async()=>{
       const r=await solicitudApi<{mensaje:string}>(`${raiz}/asignaciones/${a.tipo}/${a.id}/revocar`,'POST',{motivo:motivo.trim()});
@@ -156,8 +157,7 @@ export function AutorizacionesPage() {
         <h1>Roles y permisos</h1><p>Configurá autorizaciones para las cuentas verificadas de tu Dirección.</p>
         {contexto && <div className="admin-ambito"><strong>{contexto.direccion.nombre}</strong><span>Ámbito institucional autorizado</span></div>}
       </div>
-      {error && <div className="admin-mensaje admin-error" role="alert">{error}</div>}
-      {exito && <div className="admin-mensaje admin-exito" role="status">{exito}</div>}
+      <AvisoOperacion error={error} exito={exito} cerrar={()=>{setError('');setExito('');}}/>
       {cargando && <p role="status">Comprobando permisos institucionales...</p>}
       {!cargando && !contexto && <section className="admin-panel"><h2>Acceso restringido</h2>
         <p>Esta sección requiere una sesión y autoridad de Dirección vigentes. Ingresá con la cuenta autorizada.</p>

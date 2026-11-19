@@ -19,8 +19,11 @@ services:
     volumes:
       - ./backend:/app
       - backend_node_modules:/app/node_modules
+      - documentos_nest_data:/app/almacen-documentos
     environment:
       NODE_ENV: development
+      DOCUMENTOS_RAIZ: /app/almacen-documentos
+      DOCUMENTOS_MAX_MB: ${DOCUMENTOS_MAX_MB:-50}
       PORT: '3000'
       POSTGRES_HOST: db
       POSTGRES_PORT: '5432'
@@ -61,3 +64,4 @@ volumes:
   postgres_nest_data:
   backend_node_modules:
   frontend_node_modules:
+  documentos_nest_data:

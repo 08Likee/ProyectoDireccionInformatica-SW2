@@ -29,6 +29,15 @@ describe('Navegación institucional por permisos vigentes', () => {
     expect(screen.queryByRole('link', { name: 'Administración' })).toBeNull();
   });
 
+
+  it('muestra Documentos solo con permiso documental de consulta o gestión', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ok:true,json:async() => ({
+      perfil:{permisosInstitucionales:['DOCUMENTOS_GESTIONAR']},
+    })}));
+    render(<NavegacionInstitucional />);
+    expect((await screen.findByRole('link',{name:'Documentos'})).getAttribute('href')).toBe('/documentos');
+    expect(screen.queryByRole('link',{name:'Administración'})).toBeNull();
+  });
   it('oculta Administración cuando la sesión no tiene permisos o no existe', async () => {
     const solicitud = vi.fn().mockResolvedValue({
       ok: true,

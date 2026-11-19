@@ -8,7 +8,7 @@
     "build": "nest build",
     "typecheck": "tsc --noEmit",
     "test": "jest --runInBand --silent --testPathIgnorePatterns=integracion",
-    "test:integration": "jest --runInBand --runTestsByPath src/pk01-gestion-usuarios-seguridad/cuenta.integracion.spec.ts src/pk01-gestion-usuarios-seguridad/autorizaciones.integracion.spec.ts src/pk01-gestion-usuarios-seguridad/auditoria.integracion.spec.ts",
+    "test:integration": "jest --runInBand --runTestsByPath src/pk01-gestion-usuarios-seguridad/cuenta.integracion.spec.ts src/pk01-gestion-usuarios-seguridad/autorizaciones.integracion.spec.ts src/pk01-gestion-usuarios-seguridad/auditoria.integracion.spec.ts src/pk02-gestion-documental/documentos.integracion.spec.ts",
     "test:ci": "jest --runInBand",
     "lint": "eslint 'src/**/*.ts'"
   },

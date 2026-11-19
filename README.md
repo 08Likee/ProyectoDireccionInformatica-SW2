@@ -81,3 +81,34 @@ docker compose exec frontend npm run build
 - HTTPS y SMTP institucional deben configurarse antes del despliegue público.
 - Las pruebas de integración usan un servicio de correo simulado, PostgreSQL real y
   eliminan únicamente la cuenta temporal creada por el propio test.
+
+## Repositorio documental institucional (CU-07)
+
+La gestión documental utiliza PostgreSQL para metadatos, versiones y auditoría y un **volumen
+privado persistente de Docker** para los archivos. Los bytes **no** se almacenan bajo `frontend`,
+`public`, ni en una carpeta servida por HTTP. No se publican URLs físicas: toda recuperación
+se valida en NestJS mediante permisos vigentes y ámbito institucional.
+
+Al agregar CU-07, **recrear** el contenedor backend (no basta `docker compose restart`) para
+montar el volumen `documentos_nest_data`:
+
+```powershell
+docker compose up -d --force-recreate backend frontend
+```
+
+No ejecutar `docker compose down -v`: eliminaría también los volúmenes de PostgreSQL y documentos.
+Respaldar **tanto** la base PostgreSQL **como** `documentos_nest_data` antes de migrar o restaurar,
+ya que se necesitan ambos para conservar referencias consistentes.
+
+Parámetros **técnicos provisionales**, sujetos a validación institucional: PDF, DOCX, XLSX,
+CSV UTF-8, JPG/JPEG y PNG; 10 MiB por archivo. Se verifica el tipo mediante firma/estructura
+básica, tamaño, hash SHA-256, vigencia de permisos y ubicación institucional. Esto **no**
+sustituye un análisis antivirus formal para despliegues institucionales.
+
+La creación documental admite registros sin expediente asociado. Las vinculaciones con
+expedientes, correspondencia y trámites se integrarán cuando esos registros existan y puedan
+validarse mediante sus respectivas claves foráneas y permisos; **no se simulan destinos**.
+No se ha implementado eliminación definitiva de documentos, para no destruir antecedentes.
+
+Pruebas: `docker compose exec backend npm test`, `npm run test:integration`, `npm run build`,
+`npm run lint`; y `docker compose exec frontend npm test`, `npm run build`.
