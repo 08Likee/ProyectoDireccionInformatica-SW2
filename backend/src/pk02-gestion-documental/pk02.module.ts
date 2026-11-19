@@ -21,6 +21,7 @@ import { SeguimientoController } from './presentacion/seguimiento.controller';
 @Module({
   imports: [Pk01Module],
   controllers: [DocumentosController,ExpedientesController,CorrespondenciaController,SeguimientoController],
+  exports: [DocumentosRepository,DocumentosService,AccesoDocumentalService,ExpedientesService,CorrespondenciaService,SeguimientoService],
   providers: [ArchivosPrivadosService,DocumentosRepository,DocumentosService,AccesoDocumentalService,ExpedientesRepository,ExpedientesService,CorrespondenciaRepository,CorrespondenciaService,SeguimientoRepository,SeguimientoService],
 })
 export class Pk02Module {}

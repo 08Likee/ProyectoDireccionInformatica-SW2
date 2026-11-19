@@ -3,7 +3,7 @@ import logo from './assets/logo-informatica.jpg';
 import fotoModulo from './assets/modulo-236.webp';
 import fotoCampus from './assets/campus-uagrm.webp';
 import fotoFacultad from './assets/espacios-ficct.webp';
-import { EnlaceAdministracion, EnlaceAuditoria, EnlaceModuloDocumentos, EnlaceModuloExpedientes, EnlaceModuloCorrespondencia } from './navegacion/NavegacionInstitucional';
+import { EnlaceAdministracion, EnlaceAuditoria, EnlaceModuloDocumentos, EnlaceModuloExpedientes, EnlaceModuloCorrespondencia, EnlaceModuloConsultas } from './navegacion/NavegacionInstitucional';
 
 type Estado = 'consultando' | 'disponible' | 'no disponible';
 
@@ -182,6 +182,7 @@ export function App() {
               <EnlaceModuloDocumentos className="rounded-full border border-white/30 bg-white/10 px-4 py-2 font-semibold text-white transition hover:bg-white/18" />
               <EnlaceModuloExpedientes className="rounded-full border border-white/30 bg-white/10 px-4 py-2 font-semibold text-white transition hover:bg-white/18" />
               <EnlaceModuloCorrespondencia className="rounded-full border border-white/30 bg-white/10 px-4 py-2 font-semibold text-white transition hover:bg-white/18" />
+              <EnlaceModuloConsultas className="rounded-full border border-white/30 bg-white/10 px-4 py-2 font-semibold text-white transition hover:bg-white/18" />
               <a
                 href="#acceso"
                 className="ml-1 rounded-full border border-white/30 bg-white/10 px-5 py-2 font-semibold text-white shadow-sm transition hover:bg-white/18"

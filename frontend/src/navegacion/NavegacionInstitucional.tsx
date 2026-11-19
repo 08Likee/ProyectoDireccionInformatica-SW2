@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { cuentaApi, type Perfil } from '../cuenta/api';
+import { cuentaApi, solicitudApi, type Perfil } from '../cuenta/api';
 import './navegacion.css';
 
 /** La navegación orienta al usuario; el backend sigue autorizando cada operación. */
@@ -62,6 +62,15 @@ export function EnlaceModuloCorrespondencia({className}:{className?:string}={}) 
   return <a className={className} href="/correspondencia" aria-current={window.location.pathname==='/correspondencia'?'page':undefined}>Correspondencia</a>;
 }
 
+export function EnlaceModuloConsultas({className}:{className?:string}={}) {
+  const [autorizado,setAutorizado]=useState(false);
+  useEffect(()=>{let vivo=true;void solicitudApi<{ambitos:{fuentes:string[]}[]}>('/api/consultas/ambitos')
+    .then(r=>{if(vivo)setAutorizado(Array.isArray(r.ambitos)&&r.ambitos.some(a=>a.fuentes.length>0));})
+    .catch(()=>{if(vivo)setAutorizado(false);});return()=>{vivo=false;};},[]);
+  if(!autorizado)return null;
+  return <a className={className} href="/consultas" aria-current={window.location.pathname==='/consultas'?'page':undefined}>Consultas</a>;
+}
+
 export function NavegacionInstitucional() {
   return <nav className="navegacion-institucional" aria-label="Navegación institucional">
     <a href="/">Inicio</a>
@@ -70,6 +79,7 @@ export function NavegacionInstitucional() {
     <EnlaceModuloDocumentos />
     <EnlaceModuloExpedientes />
       <EnlaceModuloCorrespondencia />
+    <EnlaceModuloConsultas />
     <a href="/perfil" aria-current={window.location.pathname === '/perfil' ? 'page' : undefined}>Mi cuenta</a>
   </nav>;
 }

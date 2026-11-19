@@ -12,7 +12,7 @@ import { hashToken,tokenAleatorio } from '../infraestructura/seguridad/seguridad
 const pdf=Buffer.from('%PDF-1.7\n1 0 obj << >> endobj\n%%EOF');
 describe('CU-05 integración HTTP y PostgreSQL',()=>{
   let app:INestApplication,db:DataSource;
-  let u='',lector='',d='',ajena='',s='',sl='',p='',pa='',tipo='',remitente='',otro='',propio='',doc='',exp='';
+  let u='',lector='',lectorFiltros='',lectorDocumentos='',d='',ajena='',s='',sl='',sf='',sd='',p='',pa='',tipo='',remitente='',otro='',propio='',doc='',exp='';
   const sufijo=randomBytes(7).toString('hex'),original=process.env.DOCUMENTOS_RAIZ;
   let raiz='';
   async function id(sql:string,params:unknown[]){const [r]=await db.query(sql,params) as Array<{id:string}>;return r.id;}
@@ -22,11 +22,14 @@ describe('CU-05 integración HTTP y PostgreSQL',()=>{
     const base=original??'/app/almacen-documentos';await mkdir(base,{recursive:true});raiz=await mkdtemp(join(base,'prueba-cu05-'));process.env.DOCUMENTOS_RAIZ=raiz;
     const modulo=await Test.createTestingModule({imports:[AppModule]}).compile();app=modulo.createNestApplication();await app.init();db=app.get(DataSource);
     const usuario=(prefijo:string)=>id(`INSERT INTO usuario(identificador_personal,nombres,apellidos,correo,contrasena_hash,estado_cuenta,fecha_verificacion) VALUES($1,$2,'Prueba',$3,'HASH_INHABILITADO','ACTIVA',now()) RETURNING id_usuario::text AS id`,[prefijo+sufijo,prefijo,`${prefijo.toLowerCase()}${sufijo}@example.invalid`]);
-    u=await usuario('Exp');lector=await usuario('Lec');
+    u=await usuario('Exp');lector=await usuario('Lec');lectorFiltros=await usuario('Fil');lectorDocumentos=await usuario('Doc');
     d=await id(`INSERT INTO direccion_institucional(codigo,nombre) VALUES($1,'Prueba CU05') RETURNING id_direccion::text AS id`,['EXP_'+sufijo]);
     ajena=await id(`INSERT INTO direccion_institucional(codigo,nombre) VALUES($1,'Otra CU05') RETURNING id_direccion::text AS id`,['EXT_'+sufijo]);
-    await grant(u,d,['CORRESPONDENCIA_GESTIONAR','CORRESPONDENCIA_CONSULTAR','CORRESPONDENCIA_CATALOGOS_GESTIONAR','SEGUIMIENTO_CONSULTAR','SEGUIMIENTO_GESTIONAR','EXPEDIENTES_GESTIONAR','EXPEDIENTES_CONSULTAR','DOCUMENTOS_GESTIONAR','DOCUMENTOS_CONSULTAR','PERIODOS_GESTIONAR','DOCUMENTOS_RESTRINGIDOS_CONSULTAR','DOCUMENTOS_RESTRICCIONES_GESTIONAR']);
+    await grant(u,d,['FILTROS_CONSULTAR','CORRESPONDENCIA_GESTIONAR','CORRESPONDENCIA_CONSULTAR','CORRESPONDENCIA_CATALOGOS_GESTIONAR','SEGUIMIENTO_CONSULTAR','SEGUIMIENTO_GESTIONAR','EXPEDIENTES_GESTIONAR','EXPEDIENTES_CONSULTAR','DOCUMENTOS_GESTIONAR','DOCUMENTOS_CONSULTAR','PERIODOS_GESTIONAR','DOCUMENTOS_RESTRINGIDOS_CONSULTAR','DOCUMENTOS_RESTRICCIONES_GESTIONAR']);
     await grant(lector,d,['CORRESPONDENCIA_CONSULTAR','DOCUMENTOS_CONSULTAR','SEGUIMIENTO_CONSULTAR']);s=await sesion(u);sl=await sesion(lector);
+    // Cada escenario CU-33 que modifica permisos dispone de un lector auxiliar independiente.
+    await grant(lectorFiltros,d,['CORRESPONDENCIA_CONSULTAR','DOCUMENTOS_CONSULTAR','SEGUIMIENTO_CONSULTAR']);sf=await sesion(lectorFiltros);
+    await grant(lectorDocumentos,d,['DOCUMENTOS_CONSULTAR','FILTROS_CONSULTAR']);sd=await sesion(lectorDocumentos);
     p=await id(`INSERT INTO periodo_academico(id_direccion,gestion,codigo_periodo,fecha_inicio,fecha_fin,creado_por) VALUES($1,2026,'PRUEBA','2026-01-01','2026-06-30',$2) RETURNING id_periodo::text AS id`,[d,u]);
     pa=await id(`INSERT INTO periodo_academico(id_direccion,gestion,codigo_periodo,fecha_inicio,fecha_fin,creado_por) VALUES($1,2026,'PRUEBA','2026-01-01','2026-06-30',$2) RETURNING id_periodo::text AS id`,[ajena,u]);
     tipo=(await mutar('/api/correspondencia/tipos',{direccionId:d,codigo:'OF',nombre:'Oficio'},201)).body.id;
@@ -38,7 +41,7 @@ describe('CU-05 integración HTTP y PostgreSQL',()=>{
   },60000);
   afterAll(async()=>{
     if(db?.isInitialized){
-      const ds=[d,ajena].filter(Boolean),us=[u,lector].filter(Boolean);
+      const ds=[d,ajena].filter(Boolean),us=[u,lector,lectorFiltros,lectorDocumentos].filter(Boolean);
       await db.transaction(async manager=>{
         for(const tabla of ['movimiento_documento','relacion_correspondencia','movimiento_correspondencia','correspondencia_documento','correspondencia_expediente','correspondencia_correccion','participacion_correspondencia','correspondencia','tipo_correspondencia','interlocutor'])await manager.query(`DELETE FROM ${tabla} WHERE id_direccion=ANY($1::bigint[])`,[ds]);
       });
@@ -110,6 +113,82 @@ describe('CU-05 integración HTTP y PostgreSQL',()=>{
   const datosSeg=(ref:string)=>({...datos(ref),fechaComunicacion:'2020-01-01'});
   const altaSeg=async(ref:string)=>(await mutar('/api/correspondencia',datosSeg(ref),201)).body.id as string;
   const actuacion=(tipo:string,versionControl:number,extra:Record<string,unknown>={})=>({tipo,versionControl,fechaActuacion:'2020-01-02T09:00',responsableId:propio,...extra});
+  const consulta=(fuente:string,filtros:Record<string,string>={})=>'/api/consultas/registros?'+new URLSearchParams({direccionId:d,fuente,...filtros}).toString();
+  const detalleConsulta=(fuente:string,x:string)=>`/api/consultas/${fuente}/${x}${ambito()}`;
+  it('CU-33: intersecta permisos de fuente y Dirección y revalida el detalle',async()=>{
+    const a=await alta('CU33-PERM');
+    expect((await get('/api/consultas/ambitos',s).expect(200)).body.ambitos).toEqual([expect.objectContaining({id:d,fuentes:['CORRESPONDENCIA','DOCUMENTOS','EXPEDIENTES','ACTUACIONES']})]);
+    expect((await get('/api/consultas/ambitos',sf).expect(200)).body.ambitos).toEqual([]);
+    await get(consulta('CORRESPONDENCIA'),sf).expect(403);
+    await get('/api/consultas/ambitos','').expect(401);
+    await grant(lectorFiltros,ajena,['FILTROS_CONSULTAR']);
+    expect((await get('/api/consultas/ambitos',sf).expect(200)).body.ambitos).toEqual([]);
+    await grant(lectorFiltros,d,['FILTROS_CONSULTAR']);
+    expect((await get('/api/consultas/ambitos',sf).expect(200)).body.ambitos).toEqual([expect.objectContaining({id:d,fuentes:['CORRESPONDENCIA','DOCUMENTOS','ACTUACIONES']})]);
+    await get(consulta('EXPEDIENTES'),sf).expect(403);
+    await get(consulta('CORRESPONDENCIA',{direccionId:ajena}),sf).expect(403);
+    await get('/api/consultas/catalogos?direccionId='+d+'&fuente=EXPEDIENTES',sf).expect(403);
+    expect((await get(consulta('CORRESPONDENCIA',{referenciaOficial:'CU33-PERM'}),sf).expect(200)).body.total).toBe(1);
+    await get(detalleConsulta('CORRESPONDENCIA',a),sf).expect(200);
+    await db.query(`UPDATE asignacion_permiso SET fecha_revocacion=now(),revocado_por=$1 WHERE id_usuario=$2 AND id_direccion=$3 AND fecha_revocacion IS NULL AND id_permiso IN (SELECT id_permiso FROM permiso WHERE codigo='CORRESPONDENCIA_CONSULTAR')`,[u,lectorFiltros,d]);
+    await get(detalleConsulta('CORRESPONDENCIA',a),sf).expect(403);
+    const historicas=await db.query(`SELECT id_asignacion_permiso,fecha_revocacion FROM asignacion_permiso WHERE id_usuario=$1 AND id_direccion=$2 AND fecha_revocacion IS NOT NULL AND id_permiso IN (SELECT id_permiso FROM permiso WHERE codigo='CORRESPONDENCIA_CONSULTAR') ORDER BY id_asignacion_permiso`,[lectorFiltros,d]);
+    expect(historicas).toHaveLength(1);
+    await grant(lectorFiltros,d,['CORRESPONDENCIA_CONSULTAR']);
+    await get(detalleConsulta('CORRESPONDENCIA',a),sf).expect(200);
+    // Revocar solo la nueva asignación, preservando la vigencia histórica.
+    await db.query(`UPDATE asignacion_permiso SET fecha_revocacion=now(),revocado_por=$1 WHERE id_usuario=$2 AND id_direccion=$3 AND fecha_revocacion IS NULL AND id_permiso IN (SELECT id_permiso FROM permiso WHERE codigo='CORRESPONDENCIA_CONSULTAR')`,[u,lectorFiltros,d]);
+    await get(detalleConsulta('CORRESPONDENCIA',a),sf).expect(403);
+    expect(await db.query('SELECT id_asignacion_permiso,fecha_revocacion FROM asignacion_permiso WHERE id_asignacion_permiso=$1',[(historicas as Array<{id_asignacion_permiso:string}>)[0].id_asignacion_permiso])).toEqual(historicas);
+    await grant(lectorFiltros,d,['CORRESPONDENCIA_CONSULTAR']);
+    await get(detalleConsulta('CORRESPONDENCIA',a),sf).expect(200);
+    await db.query(`UPDATE asignacion_permiso SET fecha_revocacion=now(),revocado_por=$1 WHERE id_usuario=$2 AND id_direccion=$3 AND fecha_revocacion IS NULL AND id_permiso IN (SELECT id_permiso FROM permiso WHERE codigo='FILTROS_CONSULTAR')`,[u,lectorFiltros,d]);
+    await get(detalleConsulta('CORRESPONDENCIA',a),sf).expect(403);
+  });
+  it('CU-33: combina filtros exactos de correspondencia, pagina y conserva datos sin modificar',async()=>{
+    const ids:string[]=[];
+    for(let i=0;i<22;i++)ids.push((await mutar('/api/correspondencia',{...datos('CU33-PAG-'+i),periodoId:p,fechaComunicacion:'2026-11-17'},201)).body.id as string);
+    await mutar('/api/correspondencia',{...datos('CU33-AJENA-FILTRO'),periodoId:p,remitenteId:otro,fechaComunicacion:'2026-11-17'},201);
+    const filtros={sentido:'RECIBIDA',tipoId:tipo,periodoId:p,remitenteId:remitente,destinatarioId:propio,desde:'2026-11-17',hasta:'2026-11-17'};
+    const versiones=await db.query('SELECT id_correspondencia,version_control FROM correspondencia WHERE id_direccion=$1 ORDER BY id_correspondencia',[d]);
+    const antes=await db.query('SELECT count(*) FROM registro_auditoria WHERE id_direccion=$1',[d]);
+    const r=(await get(consulta('CORRESPONDENCIA',filtros),s).expect(200)).body;
+    expect(r).toMatchObject({total:22,pagina:0,tamanoPagina:20,haySiguiente:true});expect(r.registros.map((x:{id:string})=>x.id)).toEqual(ids.slice().reverse().slice(0,20));
+    const pag=(await get(consulta('CORRESPONDENCIA',{...filtros,pagina:'1'}),s).expect(200)).body;
+    expect(pag).toMatchObject({total:22,haySiguiente:false});expect(pag.registros.map((x:{id:string})=>x.id)).toEqual(ids.slice().reverse().slice(20));
+    expect((await get(consulta('CORRESPONDENCIA',{...filtros,pagina:'2'}),s).expect(200)).body).toMatchObject({total:22,registros:[]});
+    expect((await get(consulta('CORRESPONDENCIA',{...filtros,identificador:'COR-'+ids[0].padStart(6,'0'),referenciaOficial:' cu33-pag-0 '}),s).expect(200)).body).toMatchObject({total:1,registros:[expect.objectContaining({id:ids[0]})]});
+    expect((await get(consulta('CORRESPONDENCIA',{referenciaOficial:'CU33-PAG'}),s).expect(200)).body).toMatchObject({total:0,registros:[]});
+    expect((await get(consulta('CORRESPONDENCIA',{referenciaOficial:"%' OR 1=1 --"}),s).expect(200)).body.total).toBe(0);
+    await get(consulta('CORRESPONDENCIA',{titulo:'Incompatible'}),s).expect(400);
+    await get(consulta('CORRESPONDENCIA',{desde:'2026-11-18',hasta:'2026-11-17'}),s).expect(400);
+    expect(await db.query('SELECT id_correspondencia,version_control FROM correspondencia WHERE id_direccion=$1 ORDER BY id_correspondencia',[d])).toEqual(versiones);
+    expect(await db.query('SELECT count(*) FROM registro_auditoria WHERE id_direccion=$1',[d])).toEqual(antes);
+  },30000);
+  it('CU-33: excluye documentos restringidos del conteo y del detalle, incluso tras cambiar restricciones',async()=>{
+    const antes=(await get(`/api/documentos/${doc}${ambito()}`,s).expect(200)).body.documento;
+    const f={codigo:antes.codigo,titulo:' antecedente cu05 ',categoria:'PRUEBA',versionActual:String(antes.versionActual)};
+    expect((await get(consulta('DOCUMENTOS',f),sd).expect(200)).body).toMatchObject({total:1,registros:[expect.objectContaining({id:doc})]});
+    expect((await get(consulta('DOCUMENTOS',{titulo:'Antecedente'}),sd).expect(200)).body.total).toBe(0);
+    await mutar(`/api/documentos/${doc}/restriccion${ambito()}`,{restringido:true,motivo:'Prueba CU33',versionControl:antes.versionControl},200,'patch');
+    try{
+      expect((await get(consulta('DOCUMENTOS',f),sd).expect(200)).body).toMatchObject({total:0,registros:[]});
+      await get(detalleConsulta('DOCUMENTOS',doc),sd).expect(403);
+      expect((await get(consulta('DOCUMENTOS',f),s).expect(200)).body.total).toBe(1);
+      expect((await get(detalleConsulta('DOCUMENTOS',doc),s).expect(200)).body.versiones[0]).not.toHaveProperty('claveArchivo');
+    }finally{await mutar(`/api/documentos/${doc}/restriccion${ambito()}`,{restringido:false,motivo:'Fin prueba CU33',versionControl:antes.versionControl+1},200,'patch');}
+  });
+  it('CU-33: consulta expedientes y actuaciones mediante identificadores y fechas de Bolivia',async()=>{
+    expect((await get(consulta('EXPEDIENTES',{identificador:'EXP-'+exp.padStart(6,'0'),asunto:' expediente de prueba ',periodoId:p}),s).expect(200)).body).toMatchObject({total:1,registros:[expect.objectContaining({id:exp})]});
+    expect((await get(detalleConsulta('EXPEDIENTES',exp),s).expect(200)).body.expediente.id).toBe(exp);
+    expect((await get('/api/consultas/catalogos?direccionId='+d+'&fuente=ACTUACIONES',s).expect(200)).body.tipos).toHaveLength(7);
+    const a=await altaSeg('CU33-ACT');const m=(await mutar(seguimiento(a)+ambito(),actuacion('DERIVACION',0,{destinoId:otro,fechaActuacion:'2020-01-02T23:59'}),201)).body.dato.id as string;
+    const f={identificador:'COR-'+a.padStart(6,'0'),tipoMovimiento:'DERIVACION',responsableId:propio,destinoId:otro,desde:'2020-01-02',hasta:'2020-01-02'};
+    expect((await get(consulta('ACTUACIONES',f),s).expect(200)).body).toMatchObject({total:1,registros:[expect.objectContaining({id:m})]});
+    expect((await get(consulta('ACTUACIONES',{...f,desde:'2020-01-03',hasta:'2020-01-03'}),s).expect(200)).body.total).toBe(0);
+    expect((await get(detalleConsulta('ACTUACIONES',m),s).expect(200)).body).toMatchObject({correspondenciaId:a,movimiento:{id:m,tipo:'DERIVACION'}});
+    await get(detalleConsulta('ACTUACIONES',m)+'&fuente=DOCUMENTOS',s).expect(400);
+  });
   it('CU-06: registra, ordena, aclara y protege el historial sin simular estados',async()=>{
     const a=await altaSeg('SEG-CU06-1'),url=seguimiento(a)+ambito();
     expect((await get(url,sl).expect(200)).body).toMatchObject({situacion:'SIN_SEGUIMIENTO',movimientos:[],gestionar:false});
@@ -174,7 +253,7 @@ describe('CU-05 integración HTTP y PostgreSQL',()=>{
     await mutar(`/api/documentos/${doc}/restriccion${ambito()}`,{restringido:true,motivo:'Prueba seguimiento',versionControl:ac},200,'patch');
     expect((await get(url,sl).expect(200)).body.evidencias).toEqual([]);
     await mutar(`/api/documentos/${doc}/restriccion${ambito()}`,{restringido:false,motivo:'Fin de prueba',versionControl:ac+1},200,'patch');
-    await db.query(`UPDATE asignacion_permiso SET fecha_revocacion=now(),revocado_por=$1 WHERE id_usuario=$2 AND id_direccion=$3 AND id_permiso IN (SELECT id_permiso FROM permiso WHERE codigo='SEGUIMIENTO_CONSULTAR')`,[u,lector,d]);await get(url,sl).expect(403);
+    await db.query(`UPDATE asignacion_permiso SET fecha_revocacion=now(),revocado_por=$1 WHERE id_usuario=$2 AND id_direccion=$3 AND fecha_revocacion IS NULL AND id_permiso IN (SELECT id_permiso FROM permiso WHERE codigo='SEGUIMIENTO_CONSULTAR')`,[u,lector,d]);await get(url,sl).expect(403);
   });
   it('oculta documentos restringidos y revalida permisos vigentes',async()=>{
     const a=await alta('SEG-1');const actual=(await get(`/api/documentos/${doc}${ambito()}`,s).expect(200)).body.documento.versionControl;
@@ -184,6 +263,6 @@ describe('CU-05 integración HTTP y PostgreSQL',()=>{
     await get(`/api/documentos/${doc}/versiones/1/archivo${ambito()}`,sl).expect(403);
     await grant(lector,d,['CORRESPONDENCIA_GESTIONAR']);
     await mutar(ruta(a)+'/documentos'+ambito(),{documentoId:doc,versionDocumento:actual+1,versionControl:1,versionFijada:1},403,'post',sl);
-    await db.query(`UPDATE asignacion_permiso SET fecha_revocacion=now(),revocado_por=$1 WHERE id_usuario=$2 AND id_direccion=$3 AND id_permiso IN (SELECT id_permiso FROM permiso WHERE codigo='CORRESPONDENCIA_CONSULTAR')`,[u,lector,d]);await get(ruta(a)+ambito(),sl).expect(403);
+    await db.query(`UPDATE asignacion_permiso SET fecha_revocacion=now(),revocado_por=$1 WHERE id_usuario=$2 AND id_direccion=$3 AND fecha_revocacion IS NULL AND id_permiso IN (SELECT id_permiso FROM permiso WHERE codigo='CORRESPONDENCIA_CONSULTAR')`,[u,lector,d]);await get(ruta(a)+ambito(),sl).expect(403);
   });
 });

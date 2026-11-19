@@ -10,6 +10,7 @@ import { CrearExpedientes1794960004000 } from './pk02-gestion-documental/datos/m
 import { CrearCorrespondencia1794960005000 } from './pk02-gestion-documental/datos/migraciones/CrearCorrespondencia1794960005000';
 import { CrearSeguimientoCorrespondencia1794960006000 } from './pk02-gestion-documental/datos/migraciones/CrearSeguimientoCorrespondencia1794960006000';
 import { Pk02Module } from './pk02-gestion-documental/pk02.module';
+import { Pk06Module } from './pk06-busqueda-procesamiento-documental/pk06.module';
 import { APP_GUARD } from '@nestjs/core';
 import { CsrfGuard } from './infraestructura/seguridad/csrf.guard';
 
@@ -32,6 +33,7 @@ import { CsrfGuard } from './infraestructura/seguridad/csrf.guard';
     SaludModule,
     Pk01Module,
     Pk02Module,
+    Pk06Module,
   ],
   providers: [{ provide: APP_GUARD, useClass: CsrfGuard }],
 })

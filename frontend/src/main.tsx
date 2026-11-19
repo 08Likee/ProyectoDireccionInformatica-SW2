@@ -7,6 +7,7 @@ import { AuditoriaPage } from './auditoria/AuditoriaPage';
 import { DocumentosPage } from './documentos/DocumentosPage';
 import { ExpedientesPage } from './expedientes/ExpedientesPage';
 import { CorrespondenciaPage } from './correspondencia/CorrespondenciaPage';
+import { ConsultasPage } from './consultas/ConsultasPage';
 import './index.css';
 
-createRoot(document.getElementById('root')!).render(<StrictMode>{window.location.pathname === "/" ? <App /> : window.location.pathname === "/administracion/autorizaciones" ? <AutorizacionesPage /> : window.location.pathname === "/administracion/auditoria" ? <AuditoriaPage /> : window.location.pathname === "/documentos" ? <DocumentosPage /> : window.location.pathname === "/expedientes" ? <ExpedientesPage /> : window.location.pathname === "/correspondencia" ? <CorrespondenciaPage /> : <CuentaPage />}</StrictMode>);
+createRoot(document.getElementById('root')!).render(<StrictMode>{window.location.pathname === "/" ? <App /> : window.location.pathname === "/administracion/autorizaciones" ? <AutorizacionesPage /> : window.location.pathname === "/administracion/auditoria" ? <AuditoriaPage /> : window.location.pathname === "/documentos" ? <DocumentosPage /> : window.location.pathname === "/expedientes" ? <ExpedientesPage /> : window.location.pathname === "/correspondencia" ? <CorrespondenciaPage /> : window.location.pathname === "/consultas" ? <ConsultasPage /> : <CuentaPage />}</StrictMode>);
