@@ -6,28 +6,17 @@ import { NavegacionInstitucional } from '../navegacion/NavegacionInstitucional';
 import { AvisoOperacion } from '../administracion/AvisoOperacion';
 import '../administracion/autorizaciones.css';
 import './documentos.css';
+import { solicitudArchivo } from './archivos-api';
 
 type Direccion = {id:string;codigo:string;nombre:string};
 type Documento = {id:string;direccionId:string;titulo:string;categoria:string;descripcion:string;
-  versionActual:number;versionControl:number;nombreArchivo:string;tipoMime:string;tamano:string;fechaCreacion:string};
+  versionActual:number;versionControl:number;nombreArchivo:string;tipoMime:string;tamano:string;fechaCreacion:string;restringido?:boolean};
 type Version = {id:string;numeroVersion:number;nombreOriginal:string;tipoMime:string;tamanoBytes:string;fechaCreacion:string};
-type Configuracion = {consulta:Direccion[];gestion:Direccion[];limiteBytes:number;formatos:string[]};
+type Configuracion = {consulta:Direccion[];gestion:Direccion[];restricciones?:Direccion[];limiteBytes:number;formatos:string[]};
 type Lista = {documentos:Documento[];pagina:number;haySiguiente:boolean};
 const RUTA='/api/documentos';
 const NUEVO={titulo:'',categoria:'',descripcion:''};
 
-async function solicitudArchivo(ruta:string,datos:FormData) {
-  const csrf=await fetch('/api/cuenta/csrf',{credentials:'same-origin',cache:'no-store'});
-  if (!csrf.ok) throw new Error('No se pudo verificar la protección de la solicitud.');
-  const {csrfToken} = await csrf.json() as {csrfToken:string};
-  const respuesta=await fetch(ruta,{method:'POST',credentials:'same-origin',cache:'no-store',
-    headers:{'x-csrf-token':csrfToken},body:datos});
-  const contenido=await respuesta.json().catch(()=>({})) as {message?:string|string[];mensaje?:string};
-  if (respuesta.status===413) throw new Error('El archivo supera el límite de tamaño permitido.');
-  if (!respuesta.ok) throw new Error(Array.isArray(contenido.message) ? contenido.message.join('. ')
-    : contenido.message ?? 'No se pudo almacenar el documento.');
-  return contenido;
-}
 function bytes(valor:string):string {
   return `${(Number(valor)/1024).toFixed(1)} KB`;
 }
@@ -101,7 +90,7 @@ export function DocumentosPage() {
       `${RUTA}/${seleccionado.id}?direccionId=${encodeURIComponent(seleccionado.direccionId)}`)
       .then(r=>{if(vivo){setVersiones(r.versiones);setSeleccionado(r.documento);setEdicion({
         titulo:r.documento.titulo,categoria:r.documento.categoria,descripcion:r.documento.descripcion});}})
-      .catch(e=>{if(vivo)setError(mensajeError(e));});
+      .catch(e=>{if(vivo){setError(mensajeError(e));setSeleccionado(null);setVersiones([]);cerrarVista();}});
     return()=>{vivo=false;};
   },[seleccionado?.id,recarga]);
 
@@ -148,6 +137,16 @@ export function DocumentosPage() {
     try {await solicitudArchivo(`${RUTA}/${seleccionado.id}/versiones`,form);
       setMensaje('Nueva versión registrada.');setArchivoVersion(null);setRecarga(n=>n+1);
       const entrada=document.getElementById('doc-version') as HTMLInputElement|null;if(entrada)entrada.value='';}
+    catch(e){setError(mensajeError(e));}finally{setOcupado(false);}
+  }
+  async function cambiarRestriccion(){
+    if(!seleccionado)return;
+    const restringido=!seleccionado.restringido;
+    const motivo=window.prompt(restringido?'Motivo de la restricción:':'Motivo del levantamiento de la restricción:');
+    if(!motivo?.trim())return;
+    if(!window.confirm(restringido?'¿Restringir este documento y todas sus versiones?':'¿Levantar la restricción de este documento?'))return;
+    limpiarMensajes();setOcupado(true);cerrarVista();
+    try{await solicitudApi(`${RUTA}/${seleccionado.id}/restriccion?direccionId=${direccionId}`,'PATCH',{restringido,motivo,versionControl:seleccionado.versionControl});setMensaje('Restricción actualizada.');setRecarga(n=>n+1);}
     catch(e){setError(mensajeError(e));}finally{setOcupado(false);}
   }
   async function recuperar(version:Version,vista=false){
@@ -234,6 +233,8 @@ export function DocumentosPage() {
             <h2>{seleccionado.titulo}</h2></div>
             <button type="button" className="admin-boton-claro" onClick={()=>{setSeleccionado(null);cerrarVista();}}>Cerrar detalle</button></div>
           <p className="admin-ayuda">Categoría: {seleccionado.categoria}. Versión actual: {seleccionado.versionActual}.</p>
+          {seleccionado.restringido && <p className="admin-ayuda">Documento con acceso restringido.</p>}
+          {puedeGestionar && configuracion.restricciones?.some(d=>d.id===direccionId) && <button type="button" className="admin-boton-claro" disabled={ocupado} onClick={()=>void cambiarRestriccion()}>{seleccionado.restringido?'Levantar restricción':'Restringir documento'}</button>}
           <h3>Versiones disponibles</h3>
           <ul className="docs-versiones">{versiones.map(v=><li key={v.id}>
             <div><strong>Versión {v.numeroVersion}</strong><small>{v.nombreOriginal} · {bytes(v.tamanoBytes)}</small></div>

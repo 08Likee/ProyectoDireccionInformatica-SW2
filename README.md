@@ -106,9 +106,9 @@ configurable entre 1 y 50). PostgreSQL conserva un techo de 50 MiB. Se verifica 
 básica, tamaño, hash SHA-256, vigencia de permisos y ubicación institucional. Esto **no**
 sustituye un análisis antivirus formal para despliegues institucionales.
 
-La creación documental admite registros sin expediente asociado. Las vinculaciones con
-expedientes, correspondencia y trámites se integrarán cuando esos registros existan y puedan
-validarse mediante sus respectivas claves foráneas y permisos; **no se simulan destinos**.
+La creación documental admite registros sin expediente asociado. CU-08 incorpora vínculos
+con expedientes reales y protegidos por claves foráneas y permisos. Las vinculaciones con
+correspondencia y trámites se integrarán en sus respectivos incrementos; **no se simulan destinos**.
 No se ha implementado eliminación definitiva de documentos, para no destruir antecedentes.
 
 Pruebas: `docker compose exec backend npm test`, `npm run test:integration`, `npm run build`,
@@ -117,3 +117,17 @@ Para comprobar la capacidad máxima, ejecutar `docker compose exec -e DOCUMENTOS
 La prueba documental de límite usa una Dirección de prueba y un subdirectorio aislado del almacén.
 Revertir el código no revierte la migración. Volver a 10 MiB requiere que no existan versiones mayores;
 la migración descendente rechaza esa reducción si hay datos incompatibles, sin eliminarlos.
+
+
+## Expedientes administrativos (CU-08)
+
+- Ruta web `/expedientes`. Catálogo `periodo_academico` por Dirección: registrar gestión, código y fechas reales (sin registros ficticios).
+- Expedientes con código institucional opcional único por Dirección, asunto obligatorio e identificador visual derivado de la clave primaria. Se admiten expedientes vacíos.
+- Asociación documental fija (predeterminada) o dinámica. Un documento solo puede tener un vínculo activo por expediente; los retiros conservan el vínculo y la versión recuperable al momento de retirarlo. Los antecedentes obligatorios no se retiran mediante edición ordinaria.
+- Las modificaciones verifican versiones de control y registran auditoría en la transacción. El asunto y los motivos no se publican en auditoría.
+- Los documentos nuevos se incorporan por CU-07 y se seleccionan para asociar en CU-08. Si falla la asociación, se puede reintentar sin cargar otra vez el archivo.
+- Los permisos `EXPEDIENTES_CONSULTAR` y `EXPEDIENTES_GESTIONAR` no implican acceso documental. Para registrar periodos se necesita `PERIODOS_GESTIONAR`.
+- Las restricciones particulares protegen toda versión de un documento, también desde CU-07. Exigen `DOCUMENTOS_RESTRINGIDOS_CONSULTAR` además del permiso ordinario. Para restringir o levantar la restricción se necesitan consulta, gestión, acceso restringido y `DOCUMENTOS_RESTRICCIONES_GESTIONAR`. No se concede ningún permiso nuevo a roles ordinarios: la migración amplía exclusivamente el rol de sistema asignado a la autoridad vigente y audita esa ampliación.
+- No se implementan fechas institucionales ficticias, borrado físico, estados de expediente ni gestión automática de trámites. La definición de códigos oficiales y de procedimientos obligatorios queda a cargo de la Dirección.
+- La nueva migración `CrearExpedientes1794960004000` no puede revertirse automáticamente: eliminar tablas podría destruir antecedentes o relajar controles de acceso. Preparar respaldo de PostgreSQL y del volumen documental antes de aplicarla.
+- `npm run test:integration` incluye `expedientes.integracion.spec.ts` con datos de prueba aislados; ejecutar las pruebas en un entorno de desarrollo, nunca en producción.

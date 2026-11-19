@@ -1,0 +1,8 @@
+.exp-periodos { margin-bottom:1.25rem; }
+.exp-periodos summary { cursor:pointer; font-weight:750; }
+.exp-form { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:1rem; }
+.exp-detalle { scroll-margin-top:1rem; overflow-wrap:anywhere; }
+.exp-detalle:focus-visible { outline:2px solid #087bad; outline-offset:4px; }
+.exp-check { display:flex!important; flex-direction:row!important; align-items:center; }
+.exp-check input { width:auto!important; }
+@media(max-width:680px){.exp-form{grid-template-columns:1fr;}}

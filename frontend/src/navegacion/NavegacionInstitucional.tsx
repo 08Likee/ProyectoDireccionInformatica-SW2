@@ -48,12 +48,20 @@ export function EnlaceModuloDocumentos({ className }: { className?: string } = {
   return <a className={className} href="/documentos" aria-current={window.location.pathname==='/documentos'?'page':undefined}>Documentos</a>;
 }
 
+export function EnlaceModuloExpedientes({className}:{className?:string}={}) {
+  const [permisos,setPermisos]=useState<string[]>([]);
+  useEffect(()=>{let vivo=true;void cuentaApi<{perfil:Perfil}>('sesion').then(r=>{if(vivo)setPermisos(r.perfil?.permisosInstitucionales??[]);}).catch(()=>{if(vivo)setPermisos([]);});return()=>{vivo=false;};},[]);
+  if(!permisos.some(p=>['EXPEDIENTES_CONSULTAR','EXPEDIENTES_GESTIONAR','PERIODOS_GESTIONAR'].includes(p)))return null;
+  return <a className={className} href="/expedientes" aria-current={window.location.pathname==='/expedientes'?'page':undefined}>Expedientes</a>;
+}
+
 export function NavegacionInstitucional() {
   return <nav className="navegacion-institucional" aria-label="Navegación institucional">
     <a href="/">Inicio</a>
     <EnlaceAdministracion />
     <EnlaceAuditoria />
     <EnlaceModuloDocumentos />
+    <EnlaceModuloExpedientes />
     <a href="/perfil" aria-current={window.location.pathname === '/perfil' ? 'page' : undefined}>Mi cuenta</a>
   </nav>;
 }

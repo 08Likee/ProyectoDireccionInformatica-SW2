@@ -82,8 +82,8 @@ export class AutorizacionesRepository {
     return filas[0] ?? null;
   }
 
-  async usuarioDeSesion(hashSesion: string): Promise<string | null> {
-    const filas = (await this.db.query(`SELECT u.id_usuario::text AS id FROM sesion s
+  async usuarioDeSesion(hashSesion: string, q?:QueryRunner): Promise<string | null> {
+    const filas = (await (q??this.db).query(`SELECT u.id_usuario::text AS id FROM sesion s
       JOIN usuario u ON u.id_usuario=s.id_usuario
       WHERE s.identificador_seguro=$1 AND s.fecha_invalidacion IS NULL AND s.fecha_expiracion>now()
         AND u.estado_cuenta='ACTIVA' AND u.fecha_verificacion IS NOT NULL`, [hashSesion])) as Array<{ id: string }>;

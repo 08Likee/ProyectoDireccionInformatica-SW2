@@ -5,7 +5,7 @@ export interface DireccionDocumento { id: string; codigo: string; nombre: string
 export interface DocumentoFila {
   id: string; direccionId: string; codigo: string; titulo: string; categoria: string; descripcion: string;
   versionActual: number; versionControl: number; fechaCreacion: Date; fechaActualizacion: Date;
-  nombreArchivo: string; tipoMime: string; tamano: string;
+  nombreArchivo: string; tipoMime: string; tamano: string; restringido: boolean;
 }
 export interface VersionFila {
   id: string; numeroVersion: number; nombreOriginal: string; tipoMime: string;
@@ -17,8 +17,8 @@ export interface VersionFila {
 export class DocumentosRepository {
   constructor(private readonly db: DataSource) {}
 
-  async sesion(hash: string): Promise<string | null> {
-    const filas = (await this.db.query(`SELECT u.id_usuario::text AS id FROM sesion s
+  async sesion(hash: string, q?:QueryRunner): Promise<string | null> {
+    const filas = (await (q??this.db).query(`SELECT u.id_usuario::text AS id FROM sesion s
       JOIN usuario u ON u.id_usuario=s.id_usuario AND u.estado_cuenta='ACTIVA'
       AND u.fecha_verificacion IS NOT NULL WHERE s.identificador_seguro=$1
       AND s.fecha_invalidacion IS NULL AND s.fecha_expiracion>now()`, [hash])) as Array<{id:string}>;
@@ -47,16 +47,18 @@ export class DocumentosRepository {
     finally { await q.release(); }
   }
 
-  async listar(idDireccion: string, busqueda: string, pagina: number): Promise<DocumentoFila[]> {
+  async listar(idDireccion: string, busqueda: string, pagina: number, incluirRestringidos = false): Promise<DocumentoFila[]> {
     return await this.db.query(`SELECT d.id_documento::text AS id,d.id_direccion::text AS "direccionId",
       d.codigo::text,d.titulo,d.categoria,d.descripcion,d.version_actual AS "versionActual",
       d.version_control AS "versionControl",d.fecha_creacion AS "fechaCreacion",
       d.fecha_actualizacion AS "fechaActualizacion",v.nombre_original AS "nombreArchivo",
-      v.tipo_mime AS "tipoMime",v.tamano_bytes::text AS tamano
+      v.tipo_mime AS "tipoMime",v.tamano_bytes::text AS tamano,
+      EXISTS(SELECT 1 FROM restriccion_documento r WHERE r.id_documento=d.id_documento AND r.fecha_revocacion IS NULL) AS restringido
       FROM documento d JOIN version_documento v ON v.id_documento=d.id_documento AND v.numero_version=d.version_actual
       WHERE d.id_direccion=$1 AND ($2::text='' OR d.titulo ILIKE $3 ESCAPE '\\' OR d.categoria ILIKE $3 ESCAPE '\\')
+      AND ($5::boolean OR NOT EXISTS(SELECT 1 FROM restriccion_documento r WHERE r.id_documento=d.id_documento AND r.fecha_revocacion IS NULL))
       ORDER BY d.fecha_creacion DESC,d.id_documento DESC LIMIT 21 OFFSET $4`,
-    [idDireccion,busqueda,`%${busqueda.replace(/[\\%_]/g,'\\$&')}%`,pagina*20]) as DocumentoFila[];
+    [idDireccion,busqueda,`%${busqueda.replace(/[\\%_]/g,'\\$&')}%`,pagina*20,incluirRestringidos]) as DocumentoFila[];
   }
 
   async documento(id: string, idDireccion: string, q?: QueryRunner, bloquear = false): Promise<DocumentoFila | null> {
@@ -64,10 +66,16 @@ export class DocumentosRepository {
       d.codigo::text,d.titulo,d.categoria,d.descripcion,d.version_actual AS "versionActual",
       d.version_control AS "versionControl",d.fecha_creacion AS "fechaCreacion",
       d.fecha_actualizacion AS "fechaActualizacion",v.nombre_original AS "nombreArchivo",
-      v.tipo_mime AS "tipoMime",v.tamano_bytes::text AS tamano
+      v.tipo_mime AS "tipoMime",v.tamano_bytes::text AS tamano,
+      EXISTS(SELECT 1 FROM restriccion_documento r WHERE r.id_documento=d.id_documento AND r.fecha_revocacion IS NULL) AS restringido
       FROM documento d JOIN version_documento v ON v.id_documento=d.id_documento AND v.numero_version=d.version_actual
       WHERE d.id_documento=$1 AND d.id_direccion=$2 ${bloquear ? 'FOR UPDATE OF d' : ''}`, [id,idDireccion]) as DocumentoFila[];
     return filas[0] ?? null;
+  }
+
+  async restringido(id:string,q?:QueryRunner):Promise<boolean> {
+    const filas=await (q??this.db).query("SELECT 1 FROM restriccion_documento WHERE id_documento=$1 AND fecha_revocacion IS NULL",[id]) as unknown[];
+    return filas.length>0;
   }
 
   async archivoRegistrado(clave: string): Promise<boolean> {

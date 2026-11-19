@@ -45,6 +45,11 @@ export class DocumentosController {
     return this.documentos.actualizar(this.token(req),id,direccionId,datos);
   }
 
+  @Patch(':id/restriccion')
+  restriccion(@Req() req: Request,@Param('id') id:string,@Query('direccionId') direccion:string,@Body() datos:unknown) {
+    return this.documentos.modificarRestriccion(this.token(req),id,direccion,datos);
+  }
+
   @Post(':id/versiones')
   @UseInterceptors(FileInterceptor('archivo',{limits:{fileSize:LIMITE_MULTIPART,files:1,fields:2,parts:3,fieldSize:1500}}))
   version(@Req() req: Request, @Param('id') id: string, @Body() datos: Record<string,unknown>,

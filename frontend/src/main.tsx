@@ -5,6 +5,7 @@ import { CuentaPage } from './cuenta/CuentaPage';
 import { AutorizacionesPage } from './administracion/AutorizacionesPage';
 import { AuditoriaPage } from './auditoria/AuditoriaPage';
 import { DocumentosPage } from './documentos/DocumentosPage';
+import { ExpedientesPage } from './expedientes/ExpedientesPage';
 import './index.css';
 
-createRoot(document.getElementById('root')!).render(<StrictMode>{window.location.pathname === "/" ? <App /> : window.location.pathname === "/administracion/autorizaciones" ? <AutorizacionesPage /> : window.location.pathname === "/administracion/auditoria" ? <AuditoriaPage /> : window.location.pathname === "/documentos" ? <DocumentosPage /> : <CuentaPage />}</StrictMode>);
+createRoot(document.getElementById('root')!).render(<StrictMode>{window.location.pathname === "/" ? <App /> : window.location.pathname === "/administracion/autorizaciones" ? <AutorizacionesPage /> : window.location.pathname === "/administracion/auditoria" ? <AuditoriaPage /> : window.location.pathname === "/documentos" ? <DocumentosPage /> : window.location.pathname === "/expedientes" ? <ExpedientesPage /> : <CuentaPage />}</StrictMode>);

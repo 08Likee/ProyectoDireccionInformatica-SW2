@@ -69,11 +69,11 @@ export class AutorizacionesService {
   }
 
   /** Punto único reutilizable por futuros módulos: validar sesión y permiso efectivo en cada operación. */
-  async exigirPermiso(token: string | null, codigo: string, idDireccion: string): Promise<void> {
+  async exigirPermiso(token: string | null, codigo: string, idDireccion: string, q?:QueryRunner): Promise<void> {
     if (!token || !/^[A-Za-z0-9_-]{43}$/.test(token)) throw new UnauthorizedException('Iniciá sesión para continuar.');
-    const usuarioId = await this.repo.usuarioDeSesion(hashToken(token));
+    const usuarioId = await this.repo.usuarioDeSesion(hashToken(token),q);
     if (!usuarioId) throw new UnauthorizedException('La sesión ha expirado o fue invalidada.');
-    const permitidos = await this.repo.permisosEfectivos(usuarioId, idDireccion);
+    const permitidos = await this.repo.permisosEfectivos(usuarioId, idDireccion,q);
     if (!permitidos.includes(codigo)) throw new ForbiddenException('No contás con autorización vigente para esta operación.');
   }
 
