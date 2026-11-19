@@ -8,6 +8,7 @@ import { CrearDocumentos1794960002000 } from './pk02-gestion-documental/datos/mi
 import { AdecuarTamanoDocumental1794960003000 } from './pk02-gestion-documental/datos/migraciones/AdecuarTamanoDocumental1794960003000';
 import { CrearExpedientes1794960004000 } from './pk02-gestion-documental/datos/migraciones/CrearExpedientes1794960004000';
 import { CrearCorrespondencia1794960005000 } from './pk02-gestion-documental/datos/migraciones/CrearCorrespondencia1794960005000';
+import { CrearSeguimientoCorrespondencia1794960006000 } from './pk02-gestion-documental/datos/migraciones/CrearSeguimientoCorrespondencia1794960006000';
 import { Pk02Module } from './pk02-gestion-documental/pk02.module';
 import { APP_GUARD } from '@nestjs/core';
 import { CsrfGuard } from './infraestructura/seguridad/csrf.guard';
@@ -23,7 +24,7 @@ import { CsrfGuard } from './infraestructura/seguridad/csrf.guard';
       database: process.env.POSTGRES_DB ?? 'direccion_informatica',
       autoLoadEntities: true,
       synchronize: false,
-      migrations: [CrearCuentas1794960000000, CrearAutorizaciones1794960001000, CrearDocumentos1794960002000, AdecuarTamanoDocumental1794960003000, CrearExpedientes1794960004000, CrearCorrespondencia1794960005000],
+      migrations: [CrearCuentas1794960000000, CrearAutorizaciones1794960001000, CrearDocumentos1794960002000, AdecuarTamanoDocumental1794960003000, CrearExpedientes1794960004000, CrearCorrespondencia1794960005000, CrearSeguimientoCorrespondencia1794960006000],
       migrationsRun: true,
       retryAttempts: 10,
       retryDelay: 2000,

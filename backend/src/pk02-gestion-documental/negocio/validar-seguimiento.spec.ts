@@ -1,0 +1,8 @@
+import { validarActuacion,validarSecuencia } from './validar-seguimiento';
+describe('Validación CU-06',()=>{
+  const base={tipo:'RECEPCION',fechaActuacion:'2020-01-02T09:30',responsableId:'1',versionControl:0};
+  it('interpreta la hora civil boliviana independientemente de la zona del servidor',()=>expect(validarActuacion(base).instante.toISOString()).toBe('2020-01-02T13:30:00.000Z'));
+  it('rechaza fechas imposibles, futuras y campos externos',()=>{for(const f of ['2020-02-30T10:00','9999-01-01T10:00','2020-01-01T25:00'])expect(()=>validarActuacion({...base,fechaActuacion:f})).toThrow();expect(()=>validarActuacion({...base,estado:'CERRADA'})).toThrow();});
+  it('exige destino, relación o aclaración cuando corresponden',()=>{for(const tipo of ['DERIVACION','RESPUESTA','REITERACION','ACLARACION','SEGUIMIENTO'])expect(()=>validarActuacion({...base,tipo})).toThrow();expect(validarActuacion({...base,tipo:'RESPUESTA',relacionadaId:'2',versionRelacionada:0}).relacionada).toBe('2');});
+  it('verifica sentido, fecha y orden sin inventar actuaciones previas',()=>{const v=validarActuacion(base);expect(()=>validarSecuencia(v.tipo,'EMITIDA',v.dia,'2020-01-01',v.instante,[])).toThrow();expect(()=>validarSecuencia(v.tipo,'RECIBIDA',v.dia,'2020-01-03',v.instante,[])).toThrow();expect(()=>validarSecuencia(v.tipo,'RECIBIDA',v.dia,'2020-01-01',v.instante,[{tipo:'RECEPCION',fecha:v.instante}])).toThrow();expect(()=>validarSecuencia('DERIVACION','RECIBIDA',v.dia,'2020-01-01',v.instante,[{tipo:'SEGUIMIENTO',fecha:'2020-01-03T00:00:00Z'}])).toThrow();expect(()=>validarSecuencia('DERIVACION','RECIBIDA',v.dia,'2020-01-01',v.instante,[])).not.toThrow();});
+});

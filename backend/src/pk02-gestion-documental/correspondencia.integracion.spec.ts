@@ -6,6 +6,7 @@ import { randomBytes } from 'node:crypto';
 import { mkdir,mkdtemp,rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { AppModule } from '../app.module';
+import { SeguimientoService } from './negocio/seguimiento.service';
 import { CorrespondenciaService } from './negocio/correspondencia.service';
 import { hashToken,tokenAleatorio } from '../infraestructura/seguridad/seguridad.util';
 const pdf=Buffer.from('%PDF-1.7\n1 0 obj << >> endobj\n%%EOF');
@@ -24,8 +25,8 @@ describe('CU-05 integración HTTP y PostgreSQL',()=>{
     u=await usuario('Exp');lector=await usuario('Lec');
     d=await id(`INSERT INTO direccion_institucional(codigo,nombre) VALUES($1,'Prueba CU05') RETURNING id_direccion::text AS id`,['EXP_'+sufijo]);
     ajena=await id(`INSERT INTO direccion_institucional(codigo,nombre) VALUES($1,'Otra CU05') RETURNING id_direccion::text AS id`,['EXT_'+sufijo]);
-    await grant(u,d,['CORRESPONDENCIA_GESTIONAR','CORRESPONDENCIA_CONSULTAR','CORRESPONDENCIA_CATALOGOS_GESTIONAR','EXPEDIENTES_GESTIONAR','EXPEDIENTES_CONSULTAR','DOCUMENTOS_GESTIONAR','DOCUMENTOS_CONSULTAR','PERIODOS_GESTIONAR','DOCUMENTOS_RESTRINGIDOS_CONSULTAR','DOCUMENTOS_RESTRICCIONES_GESTIONAR']);
-    await grant(lector,d,['CORRESPONDENCIA_CONSULTAR','DOCUMENTOS_CONSULTAR']);s=await sesion(u);sl=await sesion(lector);
+    await grant(u,d,['CORRESPONDENCIA_GESTIONAR','CORRESPONDENCIA_CONSULTAR','CORRESPONDENCIA_CATALOGOS_GESTIONAR','SEGUIMIENTO_CONSULTAR','SEGUIMIENTO_GESTIONAR','EXPEDIENTES_GESTIONAR','EXPEDIENTES_CONSULTAR','DOCUMENTOS_GESTIONAR','DOCUMENTOS_CONSULTAR','PERIODOS_GESTIONAR','DOCUMENTOS_RESTRINGIDOS_CONSULTAR','DOCUMENTOS_RESTRICCIONES_GESTIONAR']);
+    await grant(lector,d,['CORRESPONDENCIA_CONSULTAR','DOCUMENTOS_CONSULTAR','SEGUIMIENTO_CONSULTAR']);s=await sesion(u);sl=await sesion(lector);
     p=await id(`INSERT INTO periodo_academico(id_direccion,gestion,codigo_periodo,fecha_inicio,fecha_fin,creado_por) VALUES($1,2026,'PRUEBA','2026-01-01','2026-06-30',$2) RETURNING id_periodo::text AS id`,[d,u]);
     pa=await id(`INSERT INTO periodo_academico(id_direccion,gestion,codigo_periodo,fecha_inicio,fecha_fin,creado_por) VALUES($1,2026,'PRUEBA','2026-01-01','2026-06-30',$2) RETURNING id_periodo::text AS id`,[ajena,u]);
     tipo=(await mutar('/api/correspondencia/tipos',{direccionId:d,codigo:'OF',nombre:'Oficio'},201)).body.id;
@@ -39,7 +40,7 @@ describe('CU-05 integración HTTP y PostgreSQL',()=>{
     if(db?.isInitialized){
       const ds=[d,ajena].filter(Boolean),us=[u,lector].filter(Boolean);
       await db.transaction(async manager=>{
-        for(const tabla of ['correspondencia_documento','correspondencia_expediente','correspondencia_correccion','participacion_correspondencia','correspondencia','tipo_correspondencia','interlocutor'])await manager.query(`DELETE FROM ${tabla} WHERE id_direccion=ANY($1::bigint[])`,[ds]);
+        for(const tabla of ['movimiento_documento','relacion_correspondencia','movimiento_correspondencia','correspondencia_documento','correspondencia_expediente','correspondencia_correccion','participacion_correspondencia','correspondencia','tipo_correspondencia','interlocutor'])await manager.query(`DELETE FROM ${tabla} WHERE id_direccion=ANY($1::bigint[])`,[ds]);
       });
       await db.query('DELETE FROM expediente_documento WHERE id_direccion=ANY($1::bigint[])',[ds]);
       await db.query('DELETE FROM expediente WHERE id_direccion=ANY($1::bigint[])',[ds]);
@@ -104,6 +105,76 @@ describe('CU-05 integración HTTP y PostgreSQL',()=>{
     expect((await get(ruta(a)+ambito(),s).expect(200)).body.documentos).toEqual(expect.arrayContaining([expect.objectContaining({numeroVersion:2,motivoRetiro:'Retiro dinámico'})]));
     const b=await alta('FK-1');await expect(db.query('INSERT INTO correspondencia_documento(id_correspondencia,id_direccion,id_documento,vinculado_por) VALUES($1,$2,$3,$4)',[b,ajena,doc,u])).rejects.toMatchObject({code:'23503'});
     expect(await db.query('SELECT id_correspondencia_documento FROM correspondencia_documento WHERE id_correspondencia=$1',[b])).toEqual([]);
+  });
+  const seguimiento=(c:string)=>ruta(c)+'/seguimiento';
+  const datosSeg=(ref:string)=>({...datos(ref),fechaComunicacion:'2020-01-01'});
+  const altaSeg=async(ref:string)=>(await mutar('/api/correspondencia',datosSeg(ref),201)).body.id as string;
+  const actuacion=(tipo:string,versionControl:number,extra:Record<string,unknown>={})=>({tipo,versionControl,fechaActuacion:'2020-01-02T09:00',responsableId:propio,...extra});
+  it('CU-06: registra, ordena, aclara y protege el historial sin simular estados',async()=>{
+    const a=await altaSeg('SEG-CU06-1'),url=seguimiento(a)+ambito();
+    expect((await get(url,sl).expect(200)).body).toMatchObject({situacion:'SIN_SEGUIMIENTO',movimientos:[],gestionar:false});
+    await mutar(url,actuacion('RECEPCION',0),403,'post',sl);await mutar(url,actuacion('ENVIO',0),400);
+    const m=(await mutar(url,actuacion('RECEPCION',0),201)).body.dato.id;
+    await mutar(url,actuacion('RECEPCION',1),409);
+    await mutar(url,actuacion('DERIVACION',1),400);
+    await mutar(url,actuacion('DERIVACION',1,{destinoId:otro,fechaActuacion:'2020-01-02T08:00'}),409);
+    await mutar(url,actuacion('DERIVACION',1,{destinoId:otro}),201);
+    await mutar(url,actuacion('ACLARACION',2,{aclaradoId:m,observacion:'Aclaración documentada'}),201);
+    await mutar(url,actuacion('ACLARACION',3,{aclaradoId:m,observacion:'Aclaración documentada'}),409);
+    const h=(await get(url,sl).expect(200)).body;expect(h).toMatchObject({versionControl:3,situacion:'DERIVACION',ultimoDestino:'Unidad B'});expect(h.movimientos.map((x:{tipo:string})=>x.tipo)).toEqual(['RECEPCION','DERIVACION','ACLARACION']);
+    const {direccionId,...original}=datosSeg('SEG-CU06-1');expect(direccionId).toBe(d);
+    await mutar(ruta(a)+ambito(),{...original,remitenteId:otro,versionControl:3,motivo:'Cambio prohibido'},409,'patch');
+    await mutar(ruta(a)+ambito(),{...original,asunto:'Asunto rectificado',versionControl:3,motivo:'Corrección descriptiva'},200,'patch');
+    await mutar(url,actuacion('SEGUIMIENTO',3,{observacion:'Desactualizado'}),409);
+  });
+  it('CU-06: relaciona ambas comunicaciones con versiones y rechaza ciclos',async()=>{
+    const a=await altaSeg('REL-CU06-1'),b=(await mutar('/api/correspondencia',{...datosSeg('REL-CU06-2'),sentido:'EMITIDA',remitenteId:propio,destinatarioId:remitente},201)).body.id as string;
+    const c=await altaSeg('REL-CU06-3');
+    await mutar(seguimiento(a)+ambito(),actuacion('RESPUESTA',0,{relacionadaId:a,versionRelacionada:0}),400);
+    await mutar(seguimiento(a)+ambito(),actuacion('RESPUESTA',0,{relacionadaId:c,versionRelacionada:0}),400);
+    await mutar(seguimiento(a)+ambito(),actuacion('RESPUESTA',0,{relacionadaId:b,versionRelacionada:1}),409);
+    await mutar(seguimiento(a)+ambito(),actuacion('RESPUESTA',0,{relacionadaId:b,versionRelacionada:0}),201);
+    expect((await get(seguimiento(b)+ambito(),sl).expect(200)).body).toMatchObject({versionControl:1,situacion:'SIN_SEGUIMIENTO',movimientos:[],relaciones:[expect.objectContaining({origen:a,relacionada:b,tipo:'RESPUESTA'})]});
+    await mutar(seguimiento(b)+ambito(),actuacion('RESPUESTA',1,{relacionadaId:a,versionRelacionada:1}),409);
+    expect((await get(seguimiento(b)+ambito(),sl).expect(200)).body).toMatchObject({versionControl:1,movimientos:[],relaciones:[expect.objectContaining({origen:a,relacionada:b,tipo:'RESPUESTA'})]});
+    expect((await get(seguimiento(a)+ambito(),sl).expect(200)).body.versionControl).toBe(1);
+    const {direccionId,...original}=datosSeg('REL-CU06-2');expect(direccionId).toBe(d);
+    await mutar(ruta(b)+ambito(),{...original,sentido:'EMITIDA',remitenteId:propio,destinatarioId:otro,versionControl:1,motivo:'Cambio prohibido'},409,'patch');
+    // A -> B -> C; C -> A cerraría un ciclo indirecto, sin relación directa previa entre C y A.
+    await mutar(seguimiento(b)+ambito(),actuacion('RESPUESTA',1,{relacionadaId:c,versionRelacionada:0}),201);
+    await mutar(seguimiento(c)+ambito(),actuacion('REITERACION',1,{relacionadaId:a,versionRelacionada:1}),409);
+    expect((await get(seguimiento(c)+ambito(),sl).expect(200)).body).toMatchObject({versionControl:1,movimientos:[],relaciones:[expect.objectContaining({origen:b,relacionada:c,tipo:'RESPUESTA'})]});
+    // A -> C es un vínculo acíclico válido aun cuando ya existe un camino A -> B -> C.
+    await mutar(seguimiento(a)+ambito(),actuacion('REITERACION',1,{relacionadaId:c,versionRelacionada:1}),201);
+    const envio=(await mutar(seguimiento(b)+ambito(),actuacion('ENVIO',2),201)).body.dato.id;
+    await grant(u,ajena,['CORRESPONDENCIA_GESTIONAR','CORRESPONDENCIA_CATALOGOS_GESTIONAR']);
+    const tipoAjeno=(await mutar('/api/correspondencia/tipos',{direccionId:ajena,codigo:'REL',nombre:'Tipo ajeno'},201)).body.id;
+    const personaAjena=(await mutar('/api/correspondencia/interlocutores',{direccionId:ajena,tipo:'PROPIA_DIRECCION',nombre:''},201)).body.id;
+    const fuera=(await mutar('/api/correspondencia',{...datosSeg('REL-FUERA'),direccionId:ajena,tipoId:tipoAjeno,remitenteId:personaAjena,destinatarioId:personaAjena},201)).body.id;
+    await mutar(seguimiento(b)+ambito(),actuacion('RESPUESTA',3,{relacionadaId:fuera,versionRelacionada:0}),404);
+    await expect(db.query('INSERT INTO relacion_correspondencia(id_direccion,id_correspondencia_origen,id_correspondencia_relacionada,id_movimiento,tipo_relacion,registrado_por) VALUES($1,$2,$3,$4,\'RESPUESTA\',$5)',[d,b,fuera,envio,u])).rejects.toMatchObject({code:'23503'});
+    await get(seguimiento(a)+'?direccionId='+ajena,sl).expect(403);
+  });
+  it('CU-06: conserva evidencia fija, retira y revierte fallos de auditoría',async()=>{
+    const a=await altaSeg('DOC-CU06-1'),url=seguimiento(a)+ambito();
+    const servicio=app.get(SeguimientoService) as unknown as {auditar(...args:unknown[]):Promise<void>};const fallo=jest.spyOn(servicio,'auditar').mockRejectedValueOnce(new Error('Fallo de auditoría inducido para prueba'));
+    try{await mutar(url,actuacion('RECEPCION',0),500);}finally{fallo.mockRestore();}
+    expect((await get(url,s).expect(200)).body).toMatchObject({versionControl:0,movimientos:[]});
+    const m=(await mutar(url,actuacion('RECEPCION',0),201)).body.dato.id,actual=(await get(`/api/documentos/${doc}${ambito()}`,s).expect(200)).body.documento.versionControl;
+    const vinculo=seguimiento(a)+`/${m}/documentos`,v={documentoId:doc,versionDocumento:actual,versionControl:1,versionFijada:1};
+    await mutar(vinculo+ambito(),{...v,versionFijada:null},400);
+    await expect(db.query('INSERT INTO movimiento_documento(id_movimiento,id_direccion,id_documento,numero_version_fijada,vinculado_por) VALUES($1,$2,$3,1,$4)',[m,ajena,doc,u])).rejects.toMatchObject({code:'23503'});
+    expect(await db.query('SELECT id_movimiento_documento FROM movimiento_documento WHERE id_movimiento=$1',[m])).toEqual([]);
+    const enlace=(await mutar(vinculo+ambito(),v,201)).body.dato.id;
+    const cs=await csrf();await request(app.getHttpServer()).post(`/api/documentos/${doc}/versiones`).set('Cookie',`${s}; ${cs.cookie}`).set('x-csrf-token',cs.token).field('direccionId',d).field('versionControl',String(actual)).attach('archivo',pdf,'evidencia-nueva.pdf').expect(201);
+    expect((await get(url,sl).expect(200)).body.evidencias).toEqual([expect.objectContaining({numeroVersion:1,id:enlace})]);
+    await mutar(vinculo+`/${enlace}/retirar`+ambito(),{versionControl:2,motivo:'Vínculo incorrecto'},200,'patch');
+    expect((await get(url,s).expect(200)).body.evidencias).toEqual([expect.objectContaining({numeroVersion:1,motivoRetiro:'Vínculo incorrecto'})]);
+    const ac=(await get(`/api/documentos/${doc}${ambito()}`,s).expect(200)).body.documento.versionControl;
+    await mutar(`/api/documentos/${doc}/restriccion${ambito()}`,{restringido:true,motivo:'Prueba seguimiento',versionControl:ac},200,'patch');
+    expect((await get(url,sl).expect(200)).body.evidencias).toEqual([]);
+    await mutar(`/api/documentos/${doc}/restriccion${ambito()}`,{restringido:false,motivo:'Fin de prueba',versionControl:ac+1},200,'patch');
+    await db.query(`UPDATE asignacion_permiso SET fecha_revocacion=now(),revocado_por=$1 WHERE id_usuario=$2 AND id_direccion=$3 AND id_permiso IN (SELECT id_permiso FROM permiso WHERE codigo='SEGUIMIENTO_CONSULTAR')`,[u,lector,d]);await get(url,sl).expect(403);
   });
   it('oculta documentos restringidos y revalida permisos vigentes',async()=>{
     const a=await alta('SEG-1');const actual=(await get(`/api/documentos/${doc}${ambito()}`,s).expect(200)).body.documento.versionControl;

@@ -5,6 +5,7 @@ import { hashToken } from '../../infraestructura/seguridad/seguridad.util';
 import { AutorizacionesService } from '../../pk01-gestion-usuarios-seguridad/negocio/autorizaciones.service';
 import { DocumentosRepository } from '../datos/documentos.repository';
 import { ExpedientesRepository } from '../datos/expedientes.repository';
+import { SeguimientoRepository } from '../datos/seguimiento.repository';
 import { CorrespondenciaRepository,ComunicacionFila } from '../datos/correspondencia.repository';
 import { AccesoDocumentalService,DOCUMENTOS_RESTRINGIDOS } from './acceso-documental.service';
 import { idDocumento,textoDocumento } from './validar-archivo';
@@ -15,7 +16,7 @@ type Datos=ReturnType<typeof validarCorrespondencia>;
 function instantanea(c:ComunicacionFila){return {tipoId:c.tipoId,periodoId:c.periodoId,remitenteId:c.remitenteId,destinatarioId:c.destinatarioId,sentido:c.sentido,referenciaOficial:c.referenciaOficial,asunto:c.asunto,fechaComunicacion:c.fechaComunicacion,referencia:c.referencia,observaciones:c.observaciones,remitente:c.remitente,destinatario:c.destinatario};}
 @Injectable()
 export class CorrespondenciaService {
-  constructor(private readonly repo:CorrespondenciaRepository,private readonly docs:DocumentosRepository,private readonly expedientes:ExpedientesRepository,private readonly auth:AutorizacionesService,private readonly acceso:AccesoDocumentalService){}
+  constructor(private readonly repo:CorrespondenciaRepository,private readonly docs:DocumentosRepository,private readonly expedientes:ExpedientesRepository,private readonly auth:AutorizacionesService,private readonly acceso:AccesoDocumentalService,private readonly seguimiento:SeguimientoRepository){}
   private async usuario(token:string|null,q?:QueryRunner){
     if(!token||! /^[A-Za-z0-9_-]{43}$/.test(token))throw new UnauthorizedException('Iniciá sesión.');
     const u=await this.docs.sesion(hashToken(token),q);if(!u)throw new UnauthorizedException('Sesión no vigente.');return u;
@@ -34,7 +35,7 @@ export class CorrespondenciaService {
     const desde=f.desde?fecha(f.desde):null,hasta=f.hasta?fecha(f.hasta):null;if(desde&&hasta&&desde>hasta)throw new BadRequestException('Rango de fechas inválido.');
     const pagina=Number(f.pagina??0),filas=await this.repo.listar(d,{sentido:f.sentido?sentido(f.sentido):null,tipoId:f.tipoId?idDocumento(f.tipoId):null,periodoId:f.periodoId?idDocumento(f.periodoId):null,interlocutorId:f.interlocutorId?idDocumento(f.interlocutorId):null,desde,hasta,busqueda:opcional(f.busqueda,'Búsqueda',100),pagina});return {correspondencias:filas.slice(0,20),pagina,haySiguiente:filas.length>20};}
   async detalle(token:string|null,raw:unknown,ambito:unknown){const id=idDocumento(raw),d=idDocumento(ambito);await this.auth.exigirPermiso(token,LEER,d);const correspondencia=await this.repo.comunicacion(id,d);if(!correspondencia)throw new NotFoundException('Comunicación no disponible.');
-    const consultaDocumental=await this.acceso.tiene(token,DOC,d),consultaExpedientes=await this.acceso.tiene(token,EXP,d);return {correspondencia,consultaDocumental,consultaExpedientes,documentos:consultaDocumental?await this.repo.documentos(id,d,await this.acceso.tiene(token,DOCUMENTOS_RESTRINGIDOS,d)):[],expedientes:consultaExpedientes?await this.repo.expedientes(id,d):[]};}
+    const consultaDocumental=await this.acceso.tiene(token,DOC,d),consultaExpedientes=await this.acceso.tiene(token,EXP,d);return {correspondencia,consultaDocumental,consultaExpedientes,consultaSeguimiento:await this.acceso.tiene(token,'SEGUIMIENTO_CONSULTAR',d),camposProtegidos:await this.seguimiento.protegido(id,d),documentos:consultaDocumental?await this.repo.documentos(id,d,await this.acceso.tiene(token,DOCUMENTOS_RESTRINGIDOS,d)):[],expedientes:consultaExpedientes?await this.repo.expedientes(id,d):[]};}
   async correcciones(token:string|null,raw:unknown,ambito:unknown){const id=idDocumento(raw),d=idDocumento(ambito);await this.auth.exigirPermiso(token,LEER,d);if(!await this.repo.comunicacion(id,d))throw new NotFoundException('Comunicación no disponible.');return {correcciones:await this.repo.correcciones(id,d)};}
   private async participantes(q:QueryRunner,d:string,m:Datos){const filas=await this.repo.participantes(q,d,m.remitenteId,m.destinatarioId),r=filas.find(x=>x.id===m.remitenteId),z=filas.find(x=>x.id===m.destinatarioId);if(!r||!z)throw new BadRequestException('Participante inválido o fuera del ámbito.');return {r,z};}
   private async comprobarDuplicado(q:QueryRunner,d:string,m:Datos,id:string|null){if(m.referenciaOficial||m.confirmarDuplicado)return;
@@ -53,7 +54,8 @@ export class CorrespondenciaService {
     if(accion==='CORRESPONDENCIA_CORREGIR'&&!await this.repo.direccion(q,d))throw new NotFoundException('Dirección no disponible.');const c=await this.repo.comunicacion(id,d,q,true);if(!c)throw new NotFoundException('Comunicación no disponible.');await this.auth.exigirPermiso(token,GESTION,d,q);const u=await this.usuario(token,q);if(c.versionControl!==v)throw new ConflictException('La comunicación cambió. Actualizá el detalle.');
     const dato=await fn(q,u,c);await q.query('UPDATE correspondencia SET version_control=version_control+1,fecha_actualizacion=now(),actualizado_por=$2 WHERE id_correspondencia=$1',[id,u]);await this.auditar(q,u,d,accion,'CORRESPONDENCIA',id,v+1);return {dato,versionControl:v+1};});}
   async corregir(token:string|null,raw:unknown,ambito:unknown,entrada:unknown){const id=idDocumento(raw),d=idDocumento(ambito),m=validarCorrespondencia(entrada,false);return this.modificar(token,id,d,m.version!,'CORRESPONDENCIA_CORREGIR',async(q,u,c)=>{
-    // CU-06 deberá añadir aquí su política de protección de campos y compartir el bloqueo.
+    // El bloqueo de Dirección y correspondencia se comparte con CU-06.
+    if((c.sentido!==m.sentido||c.remitenteId!==m.remitenteId||c.destinatarioId!==m.destinatarioId||c.tipoId!==m.tipoId||c.fechaComunicacion!==m.fechaComunicacion||c.referenciaOficial!==m.referenciaOficial)&&await this.seguimiento.protegido(id,d,q))throw new ConflictException('Los campos identificativos están protegidos por el historial de seguimiento o relaciones.');
     const nombres=await this.participantes(q,d,m);await this.comprobarDuplicado(q,d,m,id);
     const antes=instantanea(c),despues={tipoId:m.tipoId,periodoId:m.periodoId,remitenteId:m.remitenteId,destinatarioId:m.destinatarioId,sentido:m.sentido,referenciaOficial:m.referenciaOficial,asunto:m.asunto,fechaComunicacion:m.fechaComunicacion,referencia:m.referencia,observaciones:m.observaciones,remitente:c.remitenteId===m.remitenteId?c.remitente:nombres.r.nombre,destinatario:c.destinatarioId===m.destinatarioId?c.destinatario:nombres.z.nombre};
     if(JSON.stringify(antes)===JSON.stringify(despues))throw new BadRequestException('No hay cambios para corregir.');

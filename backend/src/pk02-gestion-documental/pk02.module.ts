@@ -14,9 +14,13 @@ import { CorrespondenciaRepository } from './datos/correspondencia.repository';
 import { CorrespondenciaService } from './negocio/correspondencia.service';
 import { CorrespondenciaController } from './presentacion/correspondencia.controller';
 
+import { SeguimientoRepository } from './datos/seguimiento.repository';
+import { SeguimientoService } from './negocio/seguimiento.service';
+import { SeguimientoController } from './presentacion/seguimiento.controller';
+
 @Module({
   imports: [Pk01Module],
-  controllers: [DocumentosController,ExpedientesController,CorrespondenciaController],
-  providers: [ArchivosPrivadosService,DocumentosRepository,DocumentosService,AccesoDocumentalService,ExpedientesRepository,ExpedientesService,CorrespondenciaRepository,CorrespondenciaService],
+  controllers: [DocumentosController,ExpedientesController,CorrespondenciaController,SeguimientoController],
+  providers: [ArchivosPrivadosService,DocumentosRepository,DocumentosService,AccesoDocumentalService,ExpedientesRepository,ExpedientesService,CorrespondenciaRepository,CorrespondenciaService,SeguimientoRepository,SeguimientoService],
 })
 export class Pk02Module {}

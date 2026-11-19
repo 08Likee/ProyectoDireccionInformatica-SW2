@@ -8,3 +8,8 @@
 .corr-detalle:focus-visible { outline: 2px solid #087bad; outline-offset: 4px; }
 .corr-historial { padding: .7rem; background: #edf5fa; border-radius: .4rem; }
 @media(max-width:680px){.corr-form{grid-template-columns:1fr;}}
+
+.seguimiento-panel { border-block: 1px solid #c8dbe7; padding-block: 1rem; margin-block: 1rem; }
+.seguimiento-lista { padding-left: 1.4rem; }
+.seguimiento-lista > li { padding: .8rem; margin-bottom: .8rem; border: 1px solid #c8dbe7; border-radius: .5rem; overflow-wrap: anywhere; }
+.seguimiento-lista p { margin-block: .5rem; }
